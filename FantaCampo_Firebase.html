@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>FantaCampo 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+<!-- ============ FIREBASE SDK ============ -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --bg:#0E271F; --bg-alt:#123328; --panel:#173B2F; --panel-2:#1C4436;
+    --line:rgba(251,246,234,0.16); --cream:#FBF6EA; --muted:#9FC2AE;
+    --gold:#F2B705; --gold-dim:#8a6d16; --bonus:#5FB158; --bonus-dim:#274d29;
+    --malus:#E85D42; --malus-dim:#4a2a22; --radius:16px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(242,183,5,0.08), transparent 40%),
+      radial-gradient(circle at 85% 10%, rgba(95,177,88,0.08), transparent 45%),
+      var(--bg);
+    color:var(--cream); font-family:'Nunito',sans-serif;
+    min-height:100vh; font-size:16px;
+  }
+  input, select, textarea{ -webkit-user-select:auto; user-select:auto; }
+  #app{max-width:640px;margin:0 auto;padding:calc(12px + var(--safe-top)) 14px calc(90px + var(--safe-bottom));}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
+    background:repeating-linear-gradient(135deg, var(--bg-alt) 0px, var(--bg-alt) 18px, #0c231c 18px, #0c231c 36px);
+    border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;gap:8px;}
+  .brand h1{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:1px;margin:0;color:var(--cream);
+    text-shadow:2px 2px 0 rgba(0,0,0,0.35);}
+  .brand h1 span{color:var(--gold);}
+  .brand small{color:var(--muted);font-weight:600;font-size:11px;letter-spacing:0.4px;}
+  .mimmi-pill{flex-shrink:0;background:var(--panel-2);border:1px solid var(--gold-dim);
+    padding:7px 11px;border-radius:999px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gold);font-weight:700;white-space:nowrap;}
+
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--bg-alt);border-top:1px solid var(--line);
+    display:flex;padding:6px 4px calc(6px + var(--safe-bottom));box-shadow:0 -6px 18px rgba(0,0,0,0.35);}
+  .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;
+    color:var(--muted);font-family:'Nunito',sans-serif;padding:8px 2px;border-radius:12px;font-size:10px;
+    font-weight:800;letter-spacing:0.2px;min-height:52px;}
+  .nav-btn .ic{font-size:20px;line-height:1;}
+  .nav-btn.active{color:var(--gold);}
+
+  h2.section-title{font-family:'Anton',sans-serif;font-weight:400;letter-spacing:0.4px;font-size:19px;
+    margin:2px 0 12px;color:var(--cream);}
+
+  .team-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;margin-bottom:12px;position:relative;overflow:hidden;}
+  .team-card.over-budget{border-color:var(--malus);}
+  .team-card.incomplete{border-color:var(--gold-dim);}
+  .rank-badge{position:absolute;top:0;left:0;background:var(--gold);color:#1c1c1c;font-family:'Anton',sans-serif;
+    font-size:13px;padding:4px 12px 5px 14px;border-bottom-right-radius:12px;}
+  .rank-badge.r2{background:#C9C9C9;} .rank-badge.r3{background:#C87C3C;}
+  .team-head{display:flex;justify-content:space-between;align-items:flex-start;margin-top:16px;gap:8px;}
+  .team-name{font-weight:800;font-size:16px;color:var(--cream);line-height:1.3;}
+  .team-anim{color:var(--muted);font-size:12px;font-weight:600;margin-top:2px;}
+  .team-score{font-family:'Anton',sans-serif;font-size:28px;color:var(--gold);line-height:1;text-align:right;}
+  .team-score-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:right;}
+  .badge{display:inline-block;font-size:9px;font-weight:800;padding:3px 8px;border-radius:999px;letter-spacing:0.3px;
+    text-transform:uppercase;margin:2px 4px 0 0;}
+  .badge.over{background:var(--malus-dim);color:var(--malus);}
+  .badge.incomplete{background:var(--gold-dim);color:var(--gold);}
+  .badge.mine{background:var(--bonus-dim);color:var(--bonus);}
+  .members{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px;}
+  .member-chip{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;
+    font-size:12.5px;display:flex;align-items:center;gap:6px;}
+  .member-chip .cap-star{color:var(--gold);}
+  .member-chip .mpts{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--cream);}
+  .member-chip.empty{color:var(--muted);font-style:italic;border-style:dashed;}
+  .budget-bar-wrap{height:7px;background:var(--panel-2);border-radius:4px;overflow:hidden;margin-bottom:8px;}
+  .budget-bar{height:100%;background:var(--bonus);transition:width .3s ease;}
+  .budget-bar.over{background:var(--malus);}
+  .budget-text{font-size:11.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+
+  .btn{background:var(--panel-2);border:1px solid var(--line);color:var(--cream);padding:12px 16px;
+    border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;
+    min-height:46px;touch-action:manipulation;}
+  .btn.primary{background:var(--gold);color:#1c1c1c;border-color:var(--gold);}
+  .btn.danger{color:var(--malus);}
+  .btn.small{padding:8px 12px;font-size:12px;min-height:38px;}
+  .btn.block{width:100%;}
+  .btn:disabled{opacity:.4;}
+  .lock-note{background:var(--panel-2);border:1px solid var(--gold-dim);border-radius:12px;padding:13px 14px;
+    font-size:13.5px;color:var(--gold);margin-bottom:14px;line-height:1.4;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:6px;
+    text-transform:uppercase;letter-spacing:0.3px;}
+  .field input[type=text], .field select{width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--cream);padding:12px;border-radius:10px;font-family:'Nunito',sans-serif;font-size:16px;min-height:46px;}
+  .cost-live{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);margin:8px 0 14px;font-weight:600;}
+  .cost-live.over{color:var(--malus);font-weight:800;}
+  .form-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .search-bar{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--cream);
+    padding:12px 14px;border-radius:12px;font-size:16px;margin-bottom:12px;min-height:46px;}
+  .bambini-list{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .bambino-row{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;
+    border-bottom:1px solid var(--line);background:var(--panel);gap:8px;}
+  .bambino-row:last-child{border-bottom:none;}
+  .bambino-row:nth-child(even){background:var(--panel-2);}
+  .bnome{font-weight:700;font-size:14px;}
+  .bteams{font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .bmeta{display:flex;gap:12px;align-items:center;flex-shrink:0;}
+  .bcost{font-family:'JetBrains Mono',monospace;color:var(--gold);font-size:12px;}
+  .btot{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:14px;color:var(--cream);}
+
+  .day-picker{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;}
+  .day-btn{flex-shrink:0;background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:10px 16px;
+    border-radius:999px;font-weight:800;font-size:13px;cursor:pointer;min-height:42px;}
+  .day-btn.active{background:var(--gold);color:#1c1c1c;border-color:var(--gold);}
+  .kid-picker{display:flex;flex-wrap:wrap;gap:7px;max-height:32vh;overflow-y:auto;border:1px solid var(--line);
+    border-radius:var(--radius);padding:12px;background:var(--panel);margin-bottom:8px;-webkit-overflow-scrolling:touch;}
+  .kid-chip{background:var(--panel-2);border:1px solid var(--line);padding:9px 13px;border-radius:999px;
+    font-size:13px;cursor:pointer;min-height:38px;display:flex;align-items:center;}
+  .kid-chip.selected{background:var(--gold);color:#1c1c1c;border-color:var(--gold);font-weight:800;}
+  .selected-count{font-size:12.5px;color:var(--muted);margin-bottom:14px;font-weight:600;}
+  .cat-tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px;}
+  .cat-tab{flex-shrink:0;background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:10px 14px;
+    border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:0.3px;
+    min-height:40px;white-space:nowrap;}
+  .cat-tab.active.bonus{background:var(--bonus);color:#0d1f0e;border-color:var(--bonus);}
+  .cat-tab.active.malus{background:var(--malus);color:#2a0f09;border-color:var(--malus);}
+  .cat-tab.active.speciale{background:var(--gold);color:#1c1c1c;border-color:var(--gold);}
+  .catalog-grid{display:flex;flex-direction:column;gap:8px;}
+  .cat-item{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 14px;cursor:pointer;
+    text-align:left;min-height:52px;}
+  .cat-item .cn{font-weight:800;font-size:14px;}
+  .cat-item .cd{font-size:12px;color:var(--muted);margin-top:3px;}
+  .cat-item .cp{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:15px;float:right;}
+  .cat-item.bonus .cp{color:var(--bonus);} .cat-item.malus .cp{color:var(--malus);} .cat-item.speciale .cp{color:var(--gold);}
+
+  .toast{position:fixed;bottom:calc(78px + var(--safe-bottom));left:50%;transform:translateX(-50%);
+    background:var(--gold);color:#1c1c1c;font-weight:800;padding:12px 20px;border-radius:999px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.4);opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;
+    font-size:13.5px;z-index:80;max-width:88vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+  .log-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;
+    border-bottom:1px solid var(--line);background:var(--panel);gap:10px;flex-wrap:wrap;}
+  .log-row:nth-child(even){background:var(--panel-2);}
+  .log-name{font-weight:700;font-size:13.5px;}
+  .log-label{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .log-right{display:flex;align-items:center;gap:8px;}
+  .log-pts{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:14px;}
+  .log-pts.pos{color:var(--bonus);} .log-pts.neg{color:var(--malus);}
+  .log-day{font-size:10px;background:var(--panel-2);border:1px solid var(--line);padding:3px 8px;border-radius:999px;color:var(--muted);}
+
+  .empty-note{color:var(--muted);font-size:13.5px;text-align:center;padding:34px 14px;line-height:1.5;}
+  .loading{color:var(--muted);text-align:center;padding:60px 16px;font-size:14px;line-height:1.6;}
+  .admin-row{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:7px;font-size:13.5px;gap:8px;}
+
+  .login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:80vh;text-align:center;padding:24px;}
+  .login-screen h1{font-family:'Anton',sans-serif;font-size:32px;margin:0 0 6px;}
+  .login-screen h1 span{color:var(--gold);}
+  .login-screen p{color:var(--muted);font-size:14px;margin:6px 0 28px;max-width:340px;line-height:1.5;}
+  .google-btn{background:#fff;color:#1c1c1c;border:none;border-radius:12px;padding:14px 24px;
+    font-weight:800;font-size:15px;display:flex;align-items:center;gap:10px;min-height:50px;}
+  .webview-warn{background:var(--panel-2);border:1px solid var(--gold-dim);border-radius:12px;padding:12px 14px;
+    font-size:12.5px;color:var(--gold);margin-top:20px;max-width:340px;line-height:1.4;}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Caricamento FantaCampo...</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ====================================================================
+   1) CONFIGURA QUI la tua app Firebase (la trovi nella console Firebase
+      in Impostazioni progetto > Generali > Le tue app > SDK setup).
+   ==================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBipI3YQJkgrPtO5npYd6UOaJI0f6uKLRY",
+  authDomain: "fantacampo2026.firebaseapp.com",
+  projectId: "fantacampo2026",
+  storageBucket: "fantacampo2026.firebasestorage.app",
+  messagingSenderId: "1017645533447",
+  appId: "1:1017645533447:web:5fc00a09593e9e365b5da2"
+};
+
+/* 2) Metti qui la TUA email Google: sarai sempre il proprietario/admin */
+const OWNER_EMAIL = "INCOLLA_QUI_LA_TUA_EMAIL@gmail.com";
+
+/* ==================================================================== */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const DAYS = ["Lun","Mar","Mer","Gio","Ven","Sab"];
+const DAY_LABELS = {Lun:"Lunedì",Mar:"Martedì",Mer:"Mercoledì",Gio:"Giovedì",Ven:"Venerdì",Sab:"Sabato"};
+
+const BAMBINI_INIZIALI = [
+["Matilde Iacoi",14],["Emma Cannella",14],["Paola Palestini",14],["Leonardo Poggi",14],
+["Leonardo Pisciaroli",15],["Letizia Falleroni",19],["Sophia Pavoni",18],["M. Loana Palestini",18],
+["Maria Elena di Bari",18],["Enrico Ferrari",18],["Giona Corradetti",20],["Alessandro Massi",20],
+["Alessio Mignini",18],["Luigi Incicco",18],["Elio Mancini",18],["Niko Seghetti",20],
+["Viola Cruciani",24],["Serena Cruciani",24],["Ginevra Capriotti",26],["Caterina Aiello",24],
+["Francesca Scarfagna",24],["Giulia di Sarno",25],["Gioia Ciarrocchi",25],["Victoria Amabili",24],
+["Ginevra Poggi",24],["Stefano Acciarri",25],["Francesco Facciabene",24],["Raul Massi",24],
+["Ludovica Candidori",27],["Sveva di Cecco",30],["Giulia Massi",28],["Maria Carmen Melasecca",27],
+["Elena Pellicciotti",28],["Maria Vittoria Coccia",28],["Angela Crescenzi",28],["Zoe Viani",28],
+["Maria Francesca Bracciani",28],["Julian Caporossi",29],["Luca Bollettini",29],
+["Tito Lorenzo Pisciaroli",29],["Saul Cognigni",28],["Francesco Giostra",28],["Federico Russo",28],
+["Andrea Capriotti",29],["Silvano Mancini",28],["Paride Esposito",29]
+];
+
+const CATALOGO = {
+  bonus: [
+    {id:"mastrolindo", label:"Mastrolindo", desc:"Aiuta a pulire/apparecchiare fuori turno", pts:10},
+    {id:"svizzero", label:"Svizzero", desc:"Primo ad arrivare a un appuntamento", pts:5},
+    {id:"gossip", label:"Gossip", desc:"Litiga con un compagno", pts:10},
+    {id:"gossip_primo", label:"Gossip (primo del campo)", desc:"Primo litigio del campo", pts:20},
+    {id:"ultimi_corta", label:"Al passo degli ultimi (bonus corta)", desc:"Tra i primi 5 - camminata corta", pts:10},
+    {id:"ultimi_lunga", label:"Al passo degli ultimi (bonus lunga)", desc:"Tra i primi 5 - camminata lunga", pts:20},
+    {id:"champions", label:"The champions", desc:"Squadra con più punti a fine giornata", pts:10},
+    {id:"tananai", label:"Tananai", desc:"Squadra con meno punti a fine giornata", pts:3},
+    {id:"dongiovanni", label:"Don Giovanni", desc:"Ha un flirt con qualcuno", pts:20},
+    {id:"cupido", label:"Cupido", desc:"Si fidanza con qualcuno", pts:30},
+    {id:"spazio_gesu", label:"Spazio per Gesù", desc:"Trovato nello stesso letto del flirt (punti da definire)", pts:0},
+    {id:"pirla", label:"Pirla", desc:"Consegna un cellulare palesemente rotto", pts:10},
+    {id:"chirichetto", label:"Chirichetto", desc:"Obbligato a fare la preghiera", pts:5},
+    {id:"postulante", label:"Postulante", desc:"Si offre di fare la preghiera a un pasto", pts:10},
+    {id:"vietnam", label:"Goodmorning Vietnam", desc:"Si offre di leggere la mattina", pts:10},
+    {id:"vietnam_veloce", label:"Goodmorning Vietnam (veloce)", desc:"Legge la mattina, velocemente", pts:15},
+    {id:"non_capito", label:"Non ho capito ma non lo dico", desc:"Sbaglia un gioco perché non ha capito", pts:10},
+    {id:"boomer", label:"Boomer", desc:"Fa \"67\" con le mani", pts:5},
+    {id:"inafter", label:"In after", desc:"Beccato all'alba", pts:5},
+    {id:"somelier", label:"Somelier", desc:"Beve un bibitone", pts:5},
+  ],
+  malus: [
+    {id:"salute", label:"Tutta salute", desc:"Si sbuccia un braccio/ginocchio", pts:-5},
+    {id:"salute_gioco", label:"Tutta salute (durante un gioco)", desc:"", pts:-10},
+    {id:"salute_camm", label:"Tutta salute (durante la camminata)", desc:"", pts:-15},
+    {id:"salute_primo", label:"Tutta salute (primo del campo)", desc:"", pts:-20},
+    {id:"medico", label:"C'è un medico a bordo?", desc:"Serve la cassetta del pronto soccorso", pts:-8},
+    {id:"medico_primo", label:"C'è un medico a bordo? (primo)", desc:"", pts:-16},
+    {id:"archeologo", label:"L'archeologo", desc:"Cade correndo sui sassi", pts:-3},
+    {id:"archeologo_primo", label:"L'archeologo (primo)", desc:"", pts:-6},
+    {id:"mia", label:"Mia", desc:"Esce sangue dal naso", pts:-10},
+    {id:"tampone", label:"Tampone positivo", desc:"Si ammala (virus, febbre...)", pts:-20},
+    {id:"rocky", label:"Rocky Balboa", desc:"Si picchia con un compagno", pts:-15},
+    {id:"guastafeste", label:"Guastafeste", desc:"Si rifiuta di fare un'attività", pts:-10},
+    {id:"barricata", label:"Barricata", desc:"Si barrica in una camera", pts:-30},
+    {id:"risponde_male", label:"Risponde male", desc:"Risponde male a un animatore", pts:-10},
+    {id:"gentleparenting", label:"Gentle parenting", desc:"Picchia un animatore", pts:-20},
+    {id:"falo", label:"Falò di confronto", desc:"Si fa venire a riprendere prima della fine", pts:-50},
+    {id:"tetti", label:"Salto sui tetti", desc:"Viene cacciato/riportato a casa", pts:-100},
+    {id:"rotto_lunedi", label:"Era già rotto lunedì", desc:"Rompe porte, letti, sedie, pezzi di casetta", pts:-25},
+    {id:"kurtcobain", label:"Kurt Cobain", desc:"Rompe uno strumento musicale", pts:-30},
+    {id:"blasfemo", label:"Blasfemo", desc:"Rompe pezzi di statue religiose", pts:-40},
+    {id:"chef", label:"Chef", desc:"Spiffera un pasto del menù", pts:-10},
+    {id:"mahmood", label:"Mahmood", desc:"Beccato a nascondere un cellulare (a testa)", pts:-10},
+    {id:"tabaccheria", label:"Tabaccheria", desc:"Trovato in possesso di puff/sigarette", pts:-20},
+    {id:"nosmoking", label:"No smoking", desc:"Beccato a fumare puff/sigarette", pts:-30},
+    {id:"ultimi_corta_m", label:"Al passo degli ultimi (malus corta)", desc:"Tra gli ultimi 5 - camminata corta", pts:-10},
+    {id:"ultimi_lunga_m", label:"Al passo degli ultimi (malus lunga)", desc:"Tra gli ultimi 5 - camminata lunga", pts:-20},
+    {id:"ascolano", label:"Ascolano", desc:"Lancia i sassi", pts:-10},
+    {id:"gazaladra", label:"Gazaladra", desc:"Ruba/si appropria di oggetti di animatori", pts:-15},
+    {id:"zzzquill", label:"Zzzquill", desc:"Manifesta sonnambulismo", pts:-10},
+  ],
+  speciale: [
+    {id:"sanfrancesco", label:"San Francesco", desc:"Ha aiutato a risolvere un litigio", pts:30},
+    {id:"winners", label:"The winners takes it all", desc:"Squadra vincitrice (1a classificata)", pts:50},
+    {id:"losers", label:"No time for losers", desc:"Squadra ultima in classifica (consolazione)", pts:5},
+  ]
+};
+
+let user = null;
+let state = { config:null, admins:[], bambini:[], squadre:[], punti:null }; // punti null = non leggibile (nascosto) o non ancora caricato
+let unsubscribers = [];
+let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null };
+
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(window.__t); window.__t = setTimeout(function(){ t.classList.remove("show"); }, 2400);
+}
+function isAdmin(){ return !!user && (user.email===OWNER_EMAIL || state.admins.indexOf(user.email)!==-1); }
+function isOwner(){ return !!user && user.email===OWNER_EMAIL; }
+
+/* ---------- AUTH ---------- */
+function isLikelyInAppBrowser(){
+  const ua = navigator.userAgent || "";
+  return /FBAN|FBAV|Instagram|WhatsApp|Line\\/|Twitter|TikTok/i.test(ua);
+}
+function renderLogin(){
+  const app = document.getElementById("app");
+  app.innerHTML =
+    '<div class="login-screen">'+
+      '<h1>FANTA<span>CAMPO</span></h1>'+
+      '<p>Accedi con il tuo account Google per creare la tua squadra e seguire la classifica del grest.</p>'+
+      '<button class="google-btn" id="loginBtn">🔵 Accedi con Google</button>'+
+      (isLikelyInAppBrowser() ? '<div class="webview-warn">Hai aperto questo link da WhatsApp o un&#39;altra app: tocca i tre puntini in alto e scegli "Apri nel browser" (Safari o Chrome) per evitare problemi con l&#39;accesso Google.</div>' : '')+
+    '</div>';
+  document.getElementById("loginBtn").onclick = function(){
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithRedirect(provider);
+  };
+}
+
+auth.getRedirectResult().catch(function(e){ console.error("redirect result error", e); });
+
+auth.onAuthStateChanged(function(u){
+  unsubscribers.forEach(function(fn){ fn(); }); unsubscribers = [];
+  user = u;
+  if(!user){ renderLogin(); return; }
+  attachListeners();
+});
+
+/* ---------- FIRESTORE LISTENERS (tempo reale) ---------- */
+function attachListeners(){
+  document.getElementById("app").innerHTML = '<div class="loading">Caricamento FantaCampo...</div>';
+
+  unsubscribers.push(db.collection("config").doc("main").onSnapshot(function(doc){
+    state.config = doc.exists ? doc.data() : null;
+    render();
+  }, function(e){ console.error(e); }));
+
+  unsubscribers.push(db.collection("admins").onSnapshot(function(snap){
+    state.admins = snap.docs.map(function(d){ return d.id; });
+    render();
+  }, function(e){ console.error(e); }));
+
+  unsubscribers.push(db.collection("bambini").onSnapshot(function(snap){
+    state.bambini = snap.docs.map(function(d){ return Object.assign({nome:d.id}, d.data()); });
+    render();
+  }, function(e){ console.error(e); }));
+
+  unsubscribers.push(db.collection("squadre").onSnapshot(function(snap){
+    state.squadre = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    render();
+  }, function(e){ console.error(e); }));
+
+  unsubscribers.push(db.collection("punti_log").onSnapshot(function(snap){
+    state.punti = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    render();
+  }, function(e){
+    // permesso negato = classifica nascosta per questo utente in questo momento: non è un errore
+    state.punti = null;
+    render();
+  }));
+}
+
+/* ---------- HELPERS DI CALCOLO ---------- */
+function findBambino(nome){ return state.bambini.filter(function(b){ return b.nome===nome; })[0]; }
+function puntiTotaliBambino(nome){
+  if(!state.punti) return null;
+  let tot = 0;
+  state.punti.forEach(function(p){ if(p.bambino===nome) tot += Number(p.punti); });
+  return tot;
+}
+function teamScoreCost(team){
+  let costo = 0, punteggio = 0, computabile = state.punti !== null;
+  (team.componenti||[]).forEach(function(n){
+    if(!n) return;
+    const b = findBambino(n);
+    if(!b) return;
+    costo += b.costo;
+    if(computabile){
+      let pts = puntiTotaliBambino(n) || 0;
+      if(n === team.capitano) pts = pts*2;
+      punteggio += pts;
+    }
+  });
+  return { costo:costo, punteggio: computabile ? punteggio : null };
+}
+
+function scadenzaSquadrePassata(){
+  if(!state.config || !state.config.scadenzaSquadre) return false;
+  return new Date() > state.config.scadenzaSquadre.toDate();
+}
+function scadenzaPuntiPassata(){
+  if(!state.config || !state.config.scadenzaPunti) return false;
+  return new Date() > state.config.scadenzaPunti.toDate();
+}
+function classificaVisibile(){
+  if(isAdmin()) return true;
+  if(state.config && state.config.classificaFinalePubblicata) return true;
+  return state.punti !== null; // se non riusciamo a leggere i punti = nascosta dalle regole del database
+}
+
+/* ---------- SETUP INIZIALE (solo owner, se il database è vuoto) ---------- */
+async function needsSetup(){
+  const snap = await db.collection("bambini").limit(1).get();
+  return snap.empty;
+}
+async function runSetup(){
+  const batch = db.batch();
+  BAMBINI_INIZIALI.forEach(function(pair){
+    const ref = db.collection("bambini").doc(pair[0]);
+    batch.set(ref, {nome:pair[0], costo:pair[1]});
+  });
+  const cfgRef = db.collection("config").doc("main");
+  const now = new Date();
+  const scadSquadre = new Date(now.getFullYear(), now.getMonth(), now.getDate()+7);
+  const scadPunti = new Date(now.getFullYear(), now.getMonth(), now.getDate()+14);
+  batch.set(cfgRef, {
+    scadenzaSquadre: firebase.firestore.Timestamp.fromDate(scadSquadre),
+    scadenzaPunti: firebase.firestore.Timestamp.fromDate(scadPunti),
+    classificaFinalePubblicata: false
+  });
+  const adminRef = db.collection("admins").doc(OWNER_EMAIL);
+  batch.set(adminRef, {addedAt: firebase.firestore.FieldValue.serverTimestamp()});
+  await batch.commit();
+  toast("Dati iniziali creati!");
+}
+
+/* ---------- RENDER ---------- */
+function render(){
+  if(!user) return;
+  if(!state.config){
+    if(isOwner()){
+      needsSetup().then(function(empty){
+        if(empty){
+          document.getElementById("app").innerHTML =
+            '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
+            '<p>Database vuoto: come proprietario puoi inizializzarlo con l&#39;elenco bambini, le scadenze di default e te stesso come amministratore.</p>'+
+            '<button class="btn primary" id="setupBtn">Inizializza dati</button></div>';
+          document.getElementById("setupBtn").onclick = function(){ runSetup(); };
+        } else {
+          document.getElementById("app").innerHTML = '<div class="loading">Caricamento configurazione...</div>';
+        }
+      });
+    } else {
+      document.getElementById("app").innerHTML = '<div class="loading">In attesa che l&#39;organizzatore completi la configurazione iniziale...</div>';
+    }
+    return;
+  }
+
+  const app = document.getElementById("app");
+  const tabs = [["classifica","🏆","Classifica"], ["squadra","👥","Squadra"], ["bambini","🧒","Bambini"]];
+  if(isAdmin()) tabs.push(["assegna","🎯","Assegna"], ["storico","📜","Storico"]);
+  if(isOwner()) tabs.push(["admin","⚙️","Admin"]);
+
+  app.innerHTML =
+    '<div class="topbar"><div class="brand"><h1>FANTA<span>CAMPO</span></h1>'+
+    '<small>'+state.squadre.length+' squadre &middot; '+state.bambini.length+' bambini</small></div>'+
+    '<div class="mimmi-pill">💰 max 100</div></div>'+
+    '<div id="tabContent"></div>'+
+    '<nav class="bottom-nav">'+ tabs.map(function(t){
+      return '<button class="nav-btn '+(ui.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'"><span class="ic">'+t[1]+'</span><span>'+t[2]+'</span></button>';
+    }).join('') +'</nav>';
+
+  Array.prototype.forEach.call(document.querySelectorAll(".nav-btn"), function(b){
+    b.onclick = function(){ ui.tab = b.dataset.tab; render(); window.scrollTo(0,0); };
+  });
+
+  const content = document.getElementById("tabContent");
+  if(ui.tab==="classifica") content.innerHTML = renderClassifica();
+  if(ui.tab==="squadra") content.innerHTML = renderSquadra();
+  if(ui.tab==="bambini") content.innerHTML = renderBambini();
+  if(ui.tab==="assegna" && isAdmin()) content.innerHTML = renderAssegna();
+  if(ui.tab==="storico" && isAdmin()) content.innerHTML = renderStorico();
+  if(ui.tab==="admin" && isOwner()) content.innerHTML = renderAdmin();
+
+  bindTabEvents();
+}
+
+function teamCard(team, idx, mine){
+  const sc = teamScoreCost(team);
+  const over = sc.costo > 100;
+  const incomplete = (team.componenti||[]).filter(function(n){return n;}).length < 5;
+  const rankClass = idx===0?"":idx===1?"r2":idx===2?"r3":"";
+  const chips = [0,1,2,3,4].map(function(i){
+    const n = (team.componenti||[])[i];
+    if(!n) return '<div class="member-chip empty">slot vuoto</div>';
+    const isCap = n===team.capitano;
+    const p = puntiTotaliBambino(n);
+    const pts = p===null ? "—" : (isCap ? p*2 : p);
+    return '<div class="member-chip">'+(isCap?'<span class="cap-star">★</span>':'')+escapeHtml(n)+' <span class="mpts">'+pts+'</span></div>';
+  }).join("");
+  return (
+    '<div class="team-card '+(over?'over-budget':'')+' '+(incomplete?'incomplete':'')+'">'+
+      '<div class="rank-badge '+rankClass+'">'+(idx+1)+'°</div>'+
+      '<div class="team-head"><div><div class="team-name">'+escapeHtml(team.nomeSquadra||"Senza nome")+'</div>'+
+        '<div class="team-anim">animatore: '+escapeHtml(team.animatoreNome||team.id)+'</div>'+
+        '<div>'+(mine?'<span class="badge mine">tua squadra</span>':'')+
+          (over?'<span class="badge over">sopra budget</span>':'')+
+          (incomplete?'<span class="badge incomplete">incompleta</span>':'')+'</div></div>'+
+        '<div><div class="team-score">'+(sc.punteggio===null?"—":sc.punteggio)+'</div><div class="team-score-label">punti</div></div>'+
+      '</div>'+
+      '<div class="members">'+chips+'</div>'+
+      '<div class="budget-bar-wrap"><div class="budget-bar '+(over?'over':'')+'" style="width:'+Math.min(sc.costo,100)+'%"></div></div>'+
+      '<div class="budget-text">'+sc.costo+' / 100 mimmi</div>'+
+    '</div>'
+  );
+}
+
+function renderClassifica(){
+  if(!classificaVisibile()){
+    return '<h2 class="section-title">Classifica</h2><div class="lock-note">La classifica non è ancora visibile. '+
+      (scadenzaPuntiPassata() ? 'La raccolta punti è terminata: verrà ripubblicata a breve con i punteggi finali.' : 'Torna a controllare più tardi.')+
+      '</div>';
+  }
+  const sorted = state.squadre.slice().sort(function(a,b){
+    const sa = teamScoreCost(a).punteggio||0, sb = teamScoreCost(b).punteggio||0;
+    return sb-sa;
+  });
+  const cards = sorted.map(function(t,i){ return teamCard(t, i, user && t.id===user.email); }).join("");
+  return '<h2 class="section-title">Classifica'+(state.config.classificaFinalePubblicata?' finale':' live')+'</h2>'+
+    (cards||'<div class="empty-note">Nessuna squadra ancora creata.</div>');
+}
+
+function renderSquadra(){
+  const mia = state.squadre.filter(function(t){ return t.id===user.email; })[0];
+  const scaduta = scadenzaSquadrePassata();
+  const canEdit = !scaduta || isAdmin();
+  const lockNote = scaduta
+    ? '<div class="lock-note">Il tempo per creare/modificare la squadra è scaduto.'+(isAdmin()?' Come admin puoi comunque modificarla.':' Contatta l&#39;organizzatore se serve una modifica.')+'</div>'
+    : '<div class="lock-note">Puoi creare o modificare la tua squadra fino alla scadenza fissata dall&#39;organizzatore.</div>';
+
+  const t = ui.editingTeam || (mia ? {
+    nomeSquadra: mia.nomeSquadra, animatoreNome: mia.animatoreNome,
+    componenti: (mia.componenti||["","","","",""]).slice(), capitanoIndex: (mia.componenti||[]).indexOf(mia.capitano)
+  } : { nomeSquadra:"", animatoreNome:"", componenti:["","","","",""], capitanoIndex:0 });
+  ui.editingTeam = t;
+
+  const options = state.bambini.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); });
+  const selects = [0,1,2,3,4].map(function(i){
+    const opts = options.map(function(o){
+      return '<option value="'+escapeHtml(o.nome)+'" '+(t.componenti[i]===o.nome?'selected':'')+'>'+escapeHtml(o.nome)+' ('+o.costo+')</option>';
+    }).join("");
+    return '<div class="field"><label>Componente '+(i+1)+'</label>'+
+      '<select id="comp'+i+'" '+(canEdit?'':'disabled')+'><option value="">-- scegli bambino --</option>'+opts+'</select></div>';
+  }).join("");
+  const capOptions = t.componenti.map(function(n,i){
+    return n ? '<option value="'+i+'" '+(t.capitanoIndex===i?'selected':'')+'>'+escapeHtml(n)+'</option>' : '';
+  }).join("");
+  const costo = t.componenti.reduce(function(s,n){ const b=findBambino(n); return s+(b?b.costo:0); }, 0);
+
+  return '<h2 class="section-title">La mia squadra</h2>'+lockNote+
+    '<div class="form-panel">'+
+      '<div class="field"><label>Nome squadra</label><input type="text" id="nomeSquadra" value="'+escapeHtml(t.nomeSquadra)+'" placeholder="es. I Fenomeni" '+(canEdit?'':'disabled')+'></div>'+
+      '<div class="field"><label>Il tuo nome (animatore)</label><input type="text" id="animatoreNome" value="'+escapeHtml(t.animatoreNome||"")+'" placeholder="Il tuo nome" '+(canEdit?'':'disabled')+'></div>'+
+      selects+
+      '<div class="field"><label>Capitano (punti doppi)</label><select id="capitanoIndex" '+(canEdit?'':'disabled')+'>'+capOptions+'</select></div>'+
+      '<div class="cost-live '+(costo>100?'over':'')+'">Costo squadra: '+costo+' / 100 mimmi'+(costo>100?'  ⚠ sopra budget':'')+'</div>'+
+      (canEdit ? '<button class="btn primary block" id="saveTeamBtn">'+(mia?'Aggiorna squadra':'Crea squadra')+'</button>' : '')+
+    '</div>';
+}
+
+function renderBambini(){
+  const q = ui.search.toLowerCase();
+  const rows = state.bambini.filter(function(b){ return b.nome.toLowerCase().indexOf(q)!==-1; })
+    .slice().sort(function(a,b){
+      const pa = puntiTotaliBambino(a.nome)||0, pb = puntiTotaliBambino(b.nome)||0;
+      return pb-pa;
+    }).map(function(b){
+      const squadre = state.squadre.filter(function(t){ return (t.componenti||[]).indexOf(b.nome)!==-1; }).map(function(t){ return t.animatoreNome||t.id; });
+      const p = puntiTotaliBambino(b.nome);
+      return '<div class="bambino-row"><div><div class="bnome">'+escapeHtml(b.nome)+'</div>'+
+        (squadre.length?'<div class="bteams">in squadra con: '+escapeHtml(squadre.join(", "))+'</div>':'')+
+        '</div><div class="bmeta"><div class="bcost">'+b.costo+' m</div>'+
+        (p!==null?'<div class="btot">'+p+' pt</div>':'')+
+        '</div></div>';
+    }).join("");
+  return '<h2 class="section-title">Bambini ('+state.bambini.length+')</h2>'+
+    '<input class="search-bar" id="searchBambini" placeholder="Cerca un bambino..." value="'+escapeHtml(ui.search)+'">'+
+    '<div class="bambini-list">'+(rows||'<div class="empty-note">Nessun risultato</div>')+'</div>';
+}
+
+function renderAssegna(){
+  const q = ui.search.toLowerCase();
+  const kids = state.bambini.filter(function(b){ return b.nome.toLowerCase().indexOf(q)!==-1; });
+  const dayBtns = DAYS.map(function(d){ return '<button class="day-btn '+(ui.day===d?'active':'')+'" data-day="'+d+'">'+d+'</button>'; }).join("");
+  const kidChips = kids.map(function(b){ return '<div class="kid-chip '+(ui.selectedKids.has(b.nome)?'selected':'')+'" data-kid="'+escapeHtml(b.nome)+'">'+escapeHtml(b.nome)+'</div>'; }).join("");
+  const cats = ["bonus","malus","speciale"];
+  const catLabels = {bonus:"Bonus", malus:"Malus", speciale:"Fine campo"};
+  const catTabs = cats.map(function(c){ return '<button class="cat-tab '+(ui.catTab===c?'active '+c:'')+'" data-cat="'+c+'">'+catLabels[c]+'</button>'; }).join("")
+    + '<button class="cat-tab '+(ui.catTab==="custom"?"active":"")+'" data-cat="custom">Custom</button>';
+  let catalogHtml = "";
+  if(ui.catTab==="custom"){
+    catalogHtml = '<div class="form-panel">'+
+      '<div class="field"><label>Etichetta</label><input type="text" id="customLabel" placeholder="es. premio spontaneo"></div>'+
+      '<div class="field"><label>Punti (positivi o negativi)</label><input type="text" id="customPts" value="10"></div>'+
+      '<button class="btn primary block" id="applyCustom">Applica ai selezionati</button></div>';
+  } else {
+    const items = CATALOGO[ui.catTab].map(function(it){
+      return '<div class="cat-item '+ui.catTab+'" data-catitem="'+it.id+'"><span class="cp">'+(it.pts>0?"+":"")+it.pts+'</span>'+
+        '<div class="cn">'+escapeHtml(it.label)+'</div><div class="cd">'+escapeHtml(it.desc)+'</div></div>';
+    }).join("");
+    catalogHtml = '<div class="catalog-grid">'+items+'</div>';
+  }
+  return '<h2 class="section-title">Assegna bonus / malus</h2>'+
+    '<div class="day-picker">'+dayBtns+'</div>'+
+    '<input class="search-bar" id="searchAssegna" placeholder="Cerca bambino..." value="'+escapeHtml(ui.search)+'">'+
+    '<div class="kid-picker">'+(kidChips||'<div class="empty-note">Nessun bambino trovato</div>')+'</div>'+
+    '<div class="selected-count">'+ui.selectedKids.size+' selezionato/i &middot; '+DAY_LABELS[ui.day]+'</div>'+
+    '<div class="cat-tabs">'+catTabs+'</div>'+catalogHtml;
+}
+
+function renderStorico(){
+  const log = (state.punti||[]).slice().sort(function(a,b){
+    const ta = a.ts && a.ts.toMillis ? a.ts.toMillis() : 0;
+    const tb = b.ts && b.ts.toMillis ? b.ts.toMillis() : 0;
+    return tb-ta;
+  });
+  const rows = log.map(function(e){
+    return '<div class="log-row"><div><div class="log-name">'+escapeHtml(e.bambino)+'</div>'+
+      '<div class="log-label">'+escapeHtml(e.etichetta)+'</div></div>'+
+      '<div class="log-right"><span class="log-day">'+e.giorno+'</span>'+
+      '<span class="log-pts '+(e.punti>=0?'pos':'neg')+'">'+(e.punti>0?"+":"")+e.punti+'</span>'+
+      '<button class="btn small danger" data-undo="'+e.id+'">Annulla</button></div></div>';
+  }).join("");
+  return '<h2 class="section-title">Storico assegnazioni</h2>'+(rows||'<div class="empty-note">Nessuna assegnazione registrata</div>');
+}
+
+function renderAdmin(){
+  const rows = state.admins.concat(state.admins.indexOf(OWNER_EMAIL)===-1?[OWNER_EMAIL]:[]).map(function(e){
+    return '<div class="admin-row"><span>'+escapeHtml(e)+'</span>'+
+      (e===OWNER_EMAIL ? '<span class="badge mine">tu (proprietario)</span>' : '<button class="btn small danger" data-rmadmin="'+escapeHtml(e)+'">Rimuovi</button>')+
+      '</div>';
+  }).join("");
+  return '<h2 class="section-title">Pannello proprietario</h2>'+
+    '<div class="form-panel"><div class="field"><label>Amministratori attuali</label></div>'+rows+
+      '<div class="field" style="margin-top:12px;"><label>Aggiungi amministratore (email Google)</label>'+
+      '<input type="text" id="newAdminEmail" placeholder="nome@gmail.com"></div>'+
+      '<button class="btn primary block" id="addAdminBtn">Aggiungi</button></div>'+
+    '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
+      '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato: '+(state.config.classificaFinalePubblicata?'<b style="color:var(--bonus)">pubblicata</b>':'<b style="color:var(--gold)">nascosta</b>')+'</div>'+
+      '<button class="btn primary block" id="toggleFinaleBtn">'+(state.config.classificaFinalePubblicata?'Nascondi di nuovo':'Pubblica classifica finale')+'</button></div>';
+}
+
+/* ---------- EVENTI ---------- */
+function bindTabEvents(){
+  if(ui.tab==="squadra"){
+    [0,1,2,3,4].forEach(function(i){
+      const el = document.getElementById("comp"+i);
+      if(el) el.onchange = function(){ ui.editingTeam.componenti[i] = el.value; render(); };
+    });
+    const nomeEl = document.getElementById("nomeSquadra");
+    if(nomeEl) nomeEl.oninput = function(){ ui.editingTeam.nomeSquadra = nomeEl.value; };
+    const animEl = document.getElementById("animatoreNome");
+    if(animEl) animEl.oninput = function(){ ui.editingTeam.animatoreNome = animEl.value; };
+    const capEl = document.getElementById("capitanoIndex");
+    if(capEl) capEl.onchange = function(){ ui.editingTeam.capitanoIndex = parseInt(capEl.value,10); };
+    const saveBtn = document.getElementById("saveTeamBtn");
+    if(saveBtn) saveBtn.onclick = async function(){
+      const t = ui.editingTeam;
+      if(!t.nomeSquadra || !t.animatoreNome){ toast("Compila nome squadra e il tuo nome"); return; }
+      const valorizzati = t.componenti.filter(function(c){ return c; });
+      if(valorizzati.length<5){ toast("Devi scegliere tutti e 5 i bambini"); return; }
+      let costo = 0;
+      for(const n of t.componenti){ const b=findBambino(n); if(!b){ toast("Bambino non trovato: "+n); return; } costo += b.costo; }
+      if(costo>100){ toast("Superi i 100 mimmi (costo attuale: "+costo+")"); return; }
+      const capitano = t.componenti[t.capitanoIndex||0] || t.componenti[0];
+      try{
+        await db.collection("squadre").doc(user.email).set({
+          nomeSquadra: t.nomeSquadra, animatoreNome: t.animatoreNome, animatoreEmail: user.email,
+          componenti: t.componenti, capitano: capitano,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        toast("Squadra salvata!"); ui.editingTeam = null;
+      }catch(e){ toast("Errore: "+e.message); }
+    };
+  }
+  if(ui.tab==="bambini"){
+    const input = document.getElementById("searchBambini");
+    if(input) input.oninput = function(){ ui.search = input.value; render(); const el=document.getElementById("searchBambini"); el.focus(); el.selectionStart = el.value.length; };
+  }
+  if(ui.tab==="assegna"){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-day]"), function(b){ b.onclick=function(){ ui.day=b.dataset.day; render(); }; });
+    const input = document.getElementById("searchAssegna");
+    if(input) input.oninput = function(){ ui.search = input.value; render(); const el=document.getElementById("searchAssegna"); el.focus(); el.selectionStart = el.value.length; };
+    Array.prototype.forEach.call(document.querySelectorAll("[data-kid]"), function(chip){
+      chip.onclick = function(){
+        const n = chip.dataset.kid;
+        if(ui.selectedKids.has(n)) ui.selectedKids.delete(n); else ui.selectedKids.add(n);
+        render();
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-cat]"), function(b){ b.onclick=function(){ ui.catTab=b.dataset.cat; render(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-catitem]"), function(el){
+      el.onclick = function(){
+        const item = CATALOGO[ui.catTab].filter(function(i){ return i.id===el.dataset.catitem; })[0];
+        applyToSelected(item.label, item.pts);
+      };
+    });
+    const applyCustomBtn = document.getElementById("applyCustom");
+    if(applyCustomBtn) applyCustomBtn.onclick = function(){
+      const label = (document.getElementById("customLabel").value||"").trim() || "Personalizzato";
+      const pts = parseInt(document.getElementById("customPts").value, 10) || 0;
+      applyToSelected(label, pts);
+    };
+  }
+  if(ui.tab==="storico"){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-undo]"), function(b){
+      b.onclick = async function(){
+        try{ await db.collection("punti_log").doc(b.dataset.undo).delete(); toast("Annullato"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
+  }
+  if(ui.tab==="admin"){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-rmadmin]"), function(b){
+      b.onclick = async function(){
+        try{ await db.collection("admins").doc(b.dataset.rmadmin).delete(); toast("Rimosso"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
+    const addBtn = document.getElementById("addAdminBtn");
+    if(addBtn) addBtn.onclick = async function(){
+      const v = (document.getElementById("newAdminEmail").value||"").trim().toLowerCase();
+      if(!v) return;
+      try{ await db.collection("admins").doc(v).set({addedAt: firebase.firestore.FieldValue.serverTimestamp()}); toast("Amministratore aggiunto"); document.getElementById("newAdminEmail").value=""; }
+      catch(e){ toast("Errore: "+e.message); }
+    };
+    const toggleBtn = document.getElementById("toggleFinaleBtn");
+    if(toggleBtn) toggleBtn.onclick = async function(){
+      try{ await db.collection("config").doc("main").update({classificaFinalePubblicata: !state.config.classificaFinalePubblicata}); toast("Aggiornato"); }
+      catch(e){ toast("Errore: "+e.message); }
+    };
+  }
+}
+
+async function applyToSelected(label, pts){
+  if(ui.selectedKids.size===0){ toast("Seleziona almeno un bambino"); return; }
+  const nomi = Array.from(ui.selectedKids);
+  try{
+    const batch = db.batch();
+    nomi.forEach(function(nome){
+      const ref = db.collection("punti_log").doc();
+      batch.set(ref, {
+        giorno: ui.day, bambino: nome, etichetta: label, punti: pts,
+        assegnatoDa: user.email, ts: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+    toast(label+" ("+(pts>0?"+":"")+pts+") applicato a "+nomi.length+" bambino/i");
+    ui.selectedKids.clear();
+    render();
+  }catch(e){ toast("Errore: "+e.message); }
+}
+</script>
+</body>
+</html>
