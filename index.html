@@ -307,7 +307,14 @@ function renderLogin(){
     '</div>';
   document.getElementById("loginBtn").onclick = function(){
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithRedirect(provider);
+    auth.signInWithPopup(provider).catch(function(e){
+      console.error("popup login error", e);
+      if(e && (e.code==="auth/popup-blocked" || e.code==="auth/cancelled-popup-request")){
+        auth.signInWithRedirect(provider);
+      } else {
+        toast("Errore login: "+(e && e.message ? e.message : String(e)));
+      }
+    });
   };
 }
 
