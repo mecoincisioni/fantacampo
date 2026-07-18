@@ -294,7 +294,7 @@ function isOwner(){ return !!user && user.email===OWNER_EMAIL; }
 /* ---------- AUTH ---------- */
 function isLikelyInAppBrowser(){
   const ua = navigator.userAgent || "";
-  return /FBAN|FBAV|Instagram|WhatsApp|Line\\/|Twitter|TikTok/i.test(ua);
+  return /FBAN|FBAV|Instagram|WhatsApp|Line|Twitter|TikTok/i.test(ua);
 }
 function renderLogin(){
   const app = document.getElementById("app");
