@@ -189,8 +189,8 @@ const firebaseConfig = {
   appId: "1:1017645533447:web:5fc00a09593e9e365b5da2"
 };
 
-/* 2) Metti qui la TUA email Google: sarai sempre il proprietario/admin */
-const OWNER_EMAIL = "meco.incisioni@gmail.com";
+/* 2) Metti qui il TUO nickname: sarai sempre il proprietario/admin (solo lettere/numeri/underscore) */
+const OWNER_USERNAME = "teocap";
 
 /* ==================================================================== */
 
@@ -288,37 +288,58 @@ function toast(msg){
   t.textContent = msg; t.classList.add("show");
   clearTimeout(window.__t); window.__t = setTimeout(function(){ t.classList.remove("show"); }, 2400);
 }
-function isAdmin(){ return !!user && (user.email===OWNER_EMAIL || state.admins.indexOf(user.email)!==-1); }
-function isOwner(){ return !!user && user.email===OWNER_EMAIL; }
+const SYNTHETIC_DOMAIN = "@fantacampo.local";
+function usernameOf(email){ return (email||"").split("@")[0]; }
+function isAdmin(){ return !!user && (usernameOf(user.email)===OWNER_USERNAME || state.admins.indexOf(usernameOf(user.email))!==-1); }
+function isOwner(){ return !!user && usernameOf(user.email)===OWNER_USERNAME; }
 
-/* ---------- AUTH ---------- */
-function isLikelyInAppBrowser(){
-  const ua = navigator.userAgent || "";
-  return /FBAN|FBAV|Instagram|WhatsApp|Line|Twitter|TikTok/i.test(ua);
-}
+/* ---------- AUTH: nickname + password ---------- */
+function validUsername(u){ return /^[a-z0-9_]{3,20}$/.test(u); }
+
 function renderLogin(){
   const app = document.getElementById("app");
   app.innerHTML =
     '<div class="login-screen">'+
       '<h1>FANTA<span>CAMPO</span></h1>'+
-      '<p>Accedi con il tuo account Google per creare la tua squadra e seguire la classifica del grest.</p>'+
-      '<button class="google-btn" id="loginBtn">🔵 Accedi con Google</button>'+
-      (isLikelyInAppBrowser() ? '<div class="webview-warn">Hai aperto questo link da WhatsApp o un&#39;altra app: tocca i tre puntini in alto e scegli "Apri nel browser" (Safari o Chrome) per evitare problemi con l&#39;accesso Google.</div>' : '')+
+      '<p>Scegli un nickname e una password per creare la tua squadra e seguire la classifica del grest.</p>'+
+      '<div class="form-panel" style="width:100%;max-width:320px;text-align:left;">'+
+        '<div class="field"><label>Nickname</label><input type="text" id="loginUser" placeholder="es. aurora" autocapitalize="off" autocorrect="off"></div>'+
+        '<div class="field"><label>Password</label><input type="text" id="loginPass" placeholder="almeno 6 caratteri"></div>'+
+        '<div id="loginMsg" style="font-size:12.5px;color:var(--malus);margin-bottom:10px;min-height:16px;"></div>'+
+        '<button class="btn primary block" id="loginBtn" style="margin-bottom:8px;">Accedi</button>'+
+        '<button class="btn block" id="registerBtn">Crea nuovo account</button>'+
+      '</div>'+
     '</div>';
+
+  function readInputs(){
+    const u = (document.getElementById("loginUser").value||"").trim().toLowerCase();
+    const p = document.getElementById("loginPass").value||"";
+    return {u:u, p:p};
+  }
+  function showMsg(t){ document.getElementById("loginMsg").textContent = t; }
+
   document.getElementById("loginBtn").onclick = function(){
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch(function(e){
-      console.error("popup login error", e);
-      if(e && (e.code==="auth/popup-blocked" || e.code==="auth/cancelled-popup-request")){
-        auth.signInWithRedirect(provider);
-      } else {
-        toast("Errore login: "+(e && e.message ? e.message : String(e)));
-      }
+    const v = readInputs();
+    if(!validUsername(v.u)){ showMsg("Nickname non valido (solo lettere/numeri/underscore, 3-20 caratteri)"); return; }
+    showMsg("Accesso in corso...");
+    auth.signInWithEmailAndPassword(v.u+SYNTHETIC_DOMAIN, v.p).catch(function(e){
+      if(e.code==="auth/user-not-found") showMsg("Nickname non trovato. Usa \"Crea nuovo account\" se è la prima volta.");
+      else if(e.code==="auth/wrong-password" || e.code==="auth/invalid-credential") showMsg("Password errata.");
+      else showMsg("Errore: "+e.message);
+    });
+  };
+  document.getElementById("registerBtn").onclick = function(){
+    const v = readInputs();
+    if(!validUsername(v.u)){ showMsg("Nickname non valido (solo lettere/numeri/underscore, 3-20 caratteri)"); return; }
+    if(v.p.length<6){ showMsg("La password deve avere almeno 6 caratteri"); return; }
+    showMsg("Creazione account in corso...");
+    auth.createUserWithEmailAndPassword(v.u+SYNTHETIC_DOMAIN, v.p).catch(function(e){
+      if(e.code==="auth/email-already-in-use") showMsg("Questo nickname è già in uso. Usa \"Accedi\" invece.");
+      else if(e.code==="auth/weak-password") showMsg("Password troppo debole (minimo 6 caratteri).");
+      else showMsg("Errore: "+e.message);
     });
   };
 }
-
-auth.getRedirectResult().catch(function(e){ console.error("redirect result error", e); });
 
 auth.onAuthStateChanged(function(u){
   unsubscribers.forEach(function(fn){ fn(); }); unsubscribers = [];
@@ -419,7 +440,7 @@ async function runSetup(){
     scadenzaPunti: firebase.firestore.Timestamp.fromDate(scadPunti),
     classificaFinalePubblicata: false
   });
-  const adminRef = db.collection("admins").doc(OWNER_EMAIL);
+  const adminRef = db.collection("admins").doc(OWNER_USERNAME);
   batch.set(adminRef, {addedAt: firebase.firestore.FieldValue.serverTimestamp()});
   await batch.commit();
   toast("Dati iniziali creati!");
@@ -516,13 +537,13 @@ function renderClassifica(){
     const sa = teamScoreCost(a).punteggio||0, sb = teamScoreCost(b).punteggio||0;
     return sb-sa;
   });
-  const cards = sorted.map(function(t,i){ return teamCard(t, i, user && t.id===user.email); }).join("");
+  const cards = sorted.map(function(t,i){ return teamCard(t, i, user && t.id===usernameOf(user.email)); }).join("");
   return '<h2 class="section-title">Classifica'+(state.config.classificaFinalePubblicata?' finale':' live')+'</h2>'+
     (cards||'<div class="empty-note">Nessuna squadra ancora creata.</div>');
 }
 
 function renderSquadra(){
-  const mia = state.squadre.filter(function(t){ return t.id===user.email; })[0];
+  const mia = state.squadre.filter(function(t){ return t.id===usernameOf(user.email); })[0];
   const scaduta = scadenzaSquadrePassata();
   const canEdit = !scaduta || isAdmin();
   const lockNote = scaduta
@@ -626,15 +647,15 @@ function renderStorico(){
 }
 
 function renderAdmin(){
-  const rows = state.admins.concat(state.admins.indexOf(OWNER_EMAIL)===-1?[OWNER_EMAIL]:[]).map(function(e){
+  const rows = state.admins.concat(state.admins.indexOf(OWNER_USERNAME)===-1?[OWNER_USERNAME]:[]).map(function(e){
     return '<div class="admin-row"><span>'+escapeHtml(e)+'</span>'+
-      (e===OWNER_EMAIL ? '<span class="badge mine">tu (proprietario)</span>' : '<button class="btn small danger" data-rmadmin="'+escapeHtml(e)+'">Rimuovi</button>')+
+      (e===OWNER_USERNAME ? '<span class="badge mine">tu (proprietario)</span>' : '<button class="btn small danger" data-rmadmin="'+escapeHtml(e)+'">Rimuovi</button>')+
       '</div>';
   }).join("");
   return '<h2 class="section-title">Pannello proprietario</h2>'+
     '<div class="form-panel"><div class="field"><label>Amministratori attuali</label></div>'+rows+
-      '<div class="field" style="margin-top:12px;"><label>Aggiungi amministratore (email Google)</label>'+
-      '<input type="text" id="newAdminEmail" placeholder="nome@gmail.com"></div>'+
+      '<div class="field" style="margin-top:12px;"><label>Aggiungi amministratore (nickname)</label>'+
+      '<input type="text" id="newAdminEmail" placeholder="es. aurora"></div>'+
       '<button class="btn primary block" id="addAdminBtn">Aggiungi</button></div>'+
     '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
       '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato: '+(state.config.classificaFinalePubblicata?'<b style="color:var(--bonus)">pubblicata</b>':'<b style="color:var(--gold)">nascosta</b>')+'</div>'+
@@ -665,7 +686,7 @@ function bindTabEvents(){
       if(costo>100){ toast("Superi i 100 mimmi (costo attuale: "+costo+")"); return; }
       const capitano = t.componenti[t.capitanoIndex||0] || t.componenti[0];
       try{
-        await db.collection("squadre").doc(user.email).set({
+        await db.collection("squadre").doc(usernameOf(user.email)).set({
           nomeSquadra: t.nomeSquadra, animatoreNome: t.animatoreNome, animatoreEmail: user.email,
           componenti: t.componenti, capitano: capitano,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -742,7 +763,7 @@ async function applyToSelected(label, pts){
       const ref = db.collection("punti_log").doc();
       batch.set(ref, {
         giorno: ui.day, bambino: nome, etichetta: label, punti: pts,
-        assegnatoDa: user.email, ts: firebase.firestore.FieldValue.serverTimestamp()
+        assegnatoDa: usernameOf(user.email), ts: firebase.firestore.FieldValue.serverTimestamp()
       });
     });
     await batch.commit();
