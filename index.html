@@ -278,7 +278,7 @@ const CATALOGO = {
 };
 
 let user = null;
-let state = { config:null, admins:[], bambini:[], squadre:[], punti:null }; // punti null = non leggibile (nascosto) o non ancora caricato
+let state = { config:null, admins:[], bambini:[], squadre:[], punti:null, utenti:[] };
 let unsubscribers = [];
 let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null };
 
@@ -292,6 +292,8 @@ const SYNTHETIC_DOMAIN = "@fantacampo.local";
 function usernameOf(email){ return (email||"").split("@")[0]; }
 function isAdmin(){ return !!user && (usernameOf(user.email)===OWNER_USERNAME || state.admins.indexOf(usernameOf(user.email))!==-1); }
 function isOwner(){ return !!user && usernameOf(user.email)===OWNER_USERNAME; }
+function myUtente(){ return state.utenti.filter(function(u2){ return u2.id===usernameOf(user.email); })[0]; }
+function isDisabled(){ const m = myUtente(); return !!m && m.disabilitato===true && !isAdmin(); }
 
 /* ---------- AUTH: nickname + password ---------- */
 function validUsername(u){ return /^[a-z0-9_]{3,20}$/.test(u); }
@@ -333,7 +335,11 @@ function renderLogin(){
     if(!validUsername(v.u)){ showMsg("Nickname non valido (solo lettere/numeri/underscore, 3-20 caratteri)"); return; }
     if(v.p.length<6){ showMsg("La password deve avere almeno 6 caratteri"); return; }
     showMsg("Creazione account in corso...");
-    auth.createUserWithEmailAndPassword(v.u+SYNTHETIC_DOMAIN, v.p).catch(function(e){
+    auth.createUserWithEmailAndPassword(v.u+SYNTHETIC_DOMAIN, v.p).then(function(cred){
+      return db.collection("utenti").doc(v.u).set({
+        username: v.u, disabilitato: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }).catch(function(e){
       if(e.code==="auth/email-already-in-use") showMsg("Questo nickname è già in uso. Usa \"Accedi\" invece.");
       else if(e.code==="auth/weak-password") showMsg("Password troppo debole (minimo 6 caratteri).");
       else showMsg("Errore: "+e.message);
@@ -341,11 +347,22 @@ function renderLogin(){
   };
 }
 
+async function ensureUtenteDoc(){
+  const uname = usernameOf(user.email);
+  const ref = db.collection("utenti").doc(uname);
+  try{
+    const doc = await ref.get();
+    if(!doc.exists){
+      await ref.set({ username: uname, disabilitato:false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+  }catch(e){ console.error("ensureUtenteDoc", e); }
+}
+
 auth.onAuthStateChanged(function(u){
   unsubscribers.forEach(function(fn){ fn(); }); unsubscribers = [];
   user = u;
   if(!user){ renderLogin(); return; }
-  attachListeners();
+  ensureUtenteDoc().then(attachListeners);
 });
 
 /* ---------- FIRESTORE LISTENERS (tempo reale) ---------- */
@@ -380,6 +397,11 @@ function attachListeners(){
     state.punti = null;
     render();
   }));
+
+  unsubscribers.push(db.collection("utenti").onSnapshot(function(snap){
+    state.utenti = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    render();
+  }, function(e){ console.error(e); }));
 }
 
 /* ---------- HELPERS DI CALCOLO ---------- */
@@ -449,6 +471,14 @@ async function runSetup(){
 /* ---------- RENDER ---------- */
 function render(){
   if(!user) return;
+  if(isDisabled()){
+    document.getElementById("app").innerHTML =
+      '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
+      '<p>Il tuo account è stato disabilitato dall&#39;organizzatore. Se pensi sia un errore, parlane con lui.</p>'+
+      '<button class="btn block" id="logoutBtn2">Esci</button></div>';
+    document.getElementById("logoutBtn2").onclick = function(){ auth.signOut(); };
+    return;
+  }
   if(!state.config){
     if(isOwner()){
       needsSetup().then(function(empty){
@@ -472,6 +502,7 @@ function render(){
   const tabs = [["classifica","🏆","Classifica"], ["squadra","👥","Squadra"], ["bambini","🧒","Bambini"]];
   if(isAdmin()) tabs.push(["assegna","🎯","Assegna"], ["storico","📜","Storico"]);
   if(isOwner()) tabs.push(["admin","⚙️","Admin"]);
+  tabs.push(["account","👤","Account"]);
 
   app.innerHTML =
     '<div class="topbar"><div class="brand"><h1>FANTA<span>CAMPO</span></h1>'+
@@ -493,6 +524,7 @@ function render(){
   if(ui.tab==="assegna" && isAdmin()) content.innerHTML = renderAssegna();
   if(ui.tab==="storico" && isAdmin()) content.innerHTML = renderStorico();
   if(ui.tab==="admin" && isOwner()) content.innerHTML = renderAdmin();
+  if(ui.tab==="account") content.innerHTML = renderAccount();
 
   bindTabEvents();
 }
@@ -652,6 +684,23 @@ function renderAdmin(){
       (e===OWNER_USERNAME ? '<span class="badge mine">tu (proprietario)</span>' : '<button class="btn small danger" data-rmadmin="'+escapeHtml(e)+'">Rimuovi</button>')+
       '</div>';
   }).join("");
+
+  const iscritti = state.utenti.slice().sort(function(a,b){
+    const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+    const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+    return tb-ta;
+  });
+  const iscrittiRows = iscritti.map(function(u2){
+    const haSquadra = state.squadre.some(function(t){ return t.id===u2.id; });
+    const data = u2.createdAt && u2.createdAt.toDate ? u2.createdAt.toDate().toLocaleString("it-IT") : "—";
+    return '<div class="admin-row"><span>'+escapeHtml(u2.id)+
+      (u2.disabilitato?'<span class="badge over">disabilitato</span>':'')+
+      (haSquadra?'':'<span class="badge incomplete">senza squadra</span>')+
+      '<div class="bteams">iscritto: '+data+'</div></span>'+
+      '<button class="btn small '+(u2.disabilitato?'':'danger')+'" data-toggledis="'+escapeHtml(u2.id)+'" data-cur="'+(u2.disabilitato?'1':'0')+'">'+(u2.disabilitato?'Riattiva':'Disabilita')+'</button>'+
+      '</div>';
+  }).join("");
+
   return '<h2 class="section-title">Pannello proprietario</h2>'+
     '<div class="form-panel"><div class="field"><label>Amministratori attuali</label></div>'+rows+
       '<div class="field" style="margin-top:12px;"><label>Aggiungi amministratore (nickname)</label>'+
@@ -659,7 +708,32 @@ function renderAdmin(){
       '<button class="btn primary block" id="addAdminBtn">Aggiungi</button></div>'+
     '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
       '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato: '+(state.config.classificaFinalePubblicata?'<b style="color:var(--bonus)">pubblicata</b>':'<b style="color:var(--gold)">nascosta</b>')+'</div>'+
-      '<button class="btn primary block" id="toggleFinaleBtn">'+(state.config.classificaFinalePubblicata?'Nascondi di nuovo':'Pubblica classifica finale')+'</button></div>';
+      '<button class="btn primary block" id="toggleFinaleBtn">'+(state.config.classificaFinalePubblicata?'Nascondi di nuovo':'Pubblica classifica finale')+'</button></div>'+
+    '<div class="form-panel"><div class="field"><label>Iscritti ('+iscritti.length+')</label></div>'+
+      (iscrittiRows||'<div class="empty-note">Nessuno iscritto ancora</div>')+
+    '</div>';
+}
+
+function renderAccount(){
+  return '<h2 class="section-title">Il mio account</h2>'+
+    '<div class="lock-note">Sei connesso come <b>'+escapeHtml(usernameOf(user.email))+'</b>.</div>'+
+    '<div class="form-panel">'+
+      '<div class="field"><label>Cambia password</label></div>'+
+      '<div class="field"><label>Password attuale</label><input type="text" id="curPass" placeholder="password attuale"></div>'+
+      '<div class="field"><label>Nuova password</label><input type="text" id="newPass" placeholder="almeno 6 caratteri"></div>'+
+      '<div id="pwMsg" style="font-size:12.5px;color:var(--malus);margin-bottom:10px;min-height:16px;"></div>'+
+      '<button class="btn primary block" id="changePwBtn">Cambia password</button>'+
+    '</div>'+
+    '<div class="form-panel">'+
+      '<button class="btn block" id="logoutBtn">Esci</button>'+
+    '</div>'+
+    '<div class="form-panel">'+
+      '<div class="field"><label>Elimina account</label></div>'+
+      '<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Elimina definitivamente il tuo account e la tua squadra. Non si può annullare.</div>'+
+      '<div class="field"><label>Conferma con la password</label><input type="text" id="delPass" placeholder="password attuale"></div>'+
+      '<div id="delMsg" style="font-size:12.5px;color:var(--malus);margin-bottom:10px;min-height:16px;"></div>'+
+      '<button class="btn danger block" id="deleteAccBtn">Elimina il mio account</button>'+
+    '</div>';
 }
 
 /* ---------- EVENTI ---------- */
@@ -750,6 +824,56 @@ function bindTabEvents(){
     if(toggleBtn) toggleBtn.onclick = async function(){
       try{ await db.collection("config").doc("main").update({classificaFinalePubblicata: !state.config.classificaFinalePubblicata}); toast("Aggiornato"); }
       catch(e){ toast("Errore: "+e.message); }
+    };
+    Array.prototype.forEach.call(document.querySelectorAll("[data-toggledis]"), function(b){
+      b.onclick = async function(){
+        const uname = b.dataset.toggledis;
+        const cur = b.dataset.cur==="1";
+        try{ await db.collection("utenti").doc(uname).update({disabilitato: !cur}); toast(cur?"Riattivato":"Disabilitato"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
+  }
+  if(ui.tab==="account"){
+    const changePwBtn = document.getElementById("changePwBtn");
+    if(changePwBtn) changePwBtn.onclick = async function(){
+      const cur = document.getElementById("curPass").value||"";
+      const np = document.getElementById("newPass").value||"";
+      const msgEl = document.getElementById("pwMsg");
+      if(np.length<6){ msgEl.textContent = "La nuova password deve avere almeno 6 caratteri"; return; }
+      msgEl.textContent = "Aggiornamento in corso...";
+      try{
+        const cred = firebase.auth.EmailAuthProvider.credential(user.email, cur);
+        await user.reauthenticateWithCredential(cred);
+        await user.updatePassword(np);
+        msgEl.textContent = "";
+        toast("Password aggiornata!");
+        document.getElementById("curPass").value=""; document.getElementById("newPass").value="";
+      }catch(e){
+        if(e.code==="auth/wrong-password" || e.code==="auth/invalid-credential") msgEl.textContent = "Password attuale errata";
+        else msgEl.textContent = "Errore: "+e.message;
+      }
+    };
+    const logoutBtn = document.getElementById("logoutBtn");
+    if(logoutBtn) logoutBtn.onclick = function(){ auth.signOut(); };
+    const deleteBtn = document.getElementById("deleteAccBtn");
+    if(deleteBtn) deleteBtn.onclick = async function(){
+      const pass = document.getElementById("delPass").value||"";
+      const msgEl = document.getElementById("delMsg");
+      if(!confirm("Sei sicuro? L'account e la tua squadra verranno eliminati per sempre.")) return;
+      msgEl.textContent = "Eliminazione in corso...";
+      try{
+        const cred = firebase.auth.EmailAuthProvider.credential(user.email, pass);
+        await user.reauthenticateWithCredential(cred);
+        const uname = usernameOf(user.email);
+        try{ await db.collection("squadre").doc(uname).delete(); }catch(e2){}
+        try{ await db.collection("utenti").doc(uname).delete(); }catch(e2){}
+        await user.delete();
+        toast("Account eliminato");
+      }catch(e){
+        if(e.code==="auth/wrong-password" || e.code==="auth/invalid-credential") msgEl.textContent = "Password errata";
+        else msgEl.textContent = "Errore: "+e.message;
+      }
     };
   }
 }
