@@ -301,9 +301,9 @@ function renderLogin(){
   app.innerHTML =
     '<div class="login-screen">'+
       '<h1>FANTA<span>CAMPO</span></h1>'+
-      '<p>Scegli un nickname e una password per creare la tua squadra e seguire la classifica del grest.</p>'+
+      '<p>Scegli un nickname e una password per creare la tua squadra e seguire la classifica del campo.</p>'+
       '<div class="form-panel" style="width:100%;max-width:320px;text-align:left;">'+
-        '<div class="field"><label>Nickname</label><input type="text" id="loginUser" placeholder="es. aurora" autocapitalize="off" autocorrect="off"></div>'+
+        '<div class="field"><label>Nickname</label><input type="text" id="loginUser" placeholder="es. teo" autocapitalize="off" autocorrect="off"></div>'+
         '<div class="field"><label>Password</label><input type="text" id="loginPass" placeholder="almeno 6 caratteri"></div>'+
         '<div id="loginMsg" style="font-size:12.5px;color:var(--malus);margin-bottom:10px;min-height:16px;"></div>'+
         '<button class="btn primary block" id="loginBtn" style="margin-bottom:8px;">Accedi</button>'+
@@ -655,7 +655,7 @@ function renderAdmin(){
   return '<h2 class="section-title">Pannello proprietario</h2>'+
     '<div class="form-panel"><div class="field"><label>Amministratori attuali</label></div>'+rows+
       '<div class="field" style="margin-top:12px;"><label>Aggiungi amministratore (nickname)</label>'+
-      '<input type="text" id="newAdminEmail" placeholder="es. aurora"></div>'+
+      '<input type="text" id="newAdminEmail" placeholder="es. teo"></div>'+
       '<button class="btn primary block" id="addAdminBtn">Aggiungi</button></div>'+
     '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
       '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato: '+(state.config.classificaFinalePubblicata?'<b style="color:var(--bonus)">pubblicata</b>':'<b style="color:var(--gold)">nascosta</b>')+'</div>'+
