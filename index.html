@@ -496,7 +496,7 @@ async function runSetup(){
   const adminRef = db.collection("admins").doc(OWNER_USERNAME);
   batch.set(adminRef, {addedAt: firebase.firestore.FieldValue.serverTimestamp()});
   await batch.commit();
-  toast("Configurazione iniziale creata! Ora vai su Admin > Gestione bambini per aggiungerli.");
+  toast("Configurazione iniziale creata! Ora vai su Admin > Gestione ragazzi per aggiungerli.");
 }
 
 /* ---------- RENDER ---------- */
@@ -527,7 +527,7 @@ function render(){
         if(empty){
           document.getElementById("app").innerHTML =
             '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
-            '<p>Prima configurazione: creerò le scadenze di default e te come amministratore. I bambini li aggiungerai subito dopo dal pannello Admin.</p>'+
+            '<p>Prima configurazione: creerò le scadenze di default e te come amministratore. I ragazzi li aggiungerai subito dopo dal pannello Admin.</p>'+
             '<button class="btn primary" id="setupBtn">Inizializza dati</button></div>';
           document.getElementById("setupBtn").onclick = function(){ runSetup(); };
         } else {
@@ -541,14 +541,14 @@ function render(){
   }
 
   const app = document.getElementById("app");
-  const tabs = [["classifica","🏆","Classifica"], ["squadra","👥","Squadra"], ["bambini","🧒","Bambini"]];
+  const tabs = [["classifica","🏆","Classifica"], ["squadra","👥","Squadra"], ["bambini","🧒","Ragazzi"]];
   if(isAdmin()) tabs.push(["assegna","🎯","Assegna"], ["storico","📜","Storico"]);
   if(isAdmin()) tabs.push(["admin","⚙️","Admin"]);
   tabs.push(["account","👤","Account"]);
 
   app.innerHTML =
     '<div class="topbar"><div class="brand"><h1>FANTA<span>CAMPO</span></h1>'+
-    '<small>'+state.squadre.length+' squadre &middot; '+state.bambini.length+' bambini</small></div>'+
+    '<small>'+state.squadre.length+' squadre &middot; '+state.bambini.length+' ragazzi</small></div>'+
     '<div class="mimmi-pill">💰 max 100</div></div>'+
     '<div id="tabContent"></div>'+
     '<nav class="bottom-nav">'+ tabs.map(function(t){
@@ -649,7 +649,7 @@ function renderSquadra(){
       return '<option value="'+escapeHtml(o.nome)+'" '+(t.componenti[i]===o.nome?'selected':'')+'>'+escapeHtml(o.nome)+' ('+o.costo+')</option>';
     }).join("");
     return '<div class="field"><label>Componente '+(i+1)+'</label>'+
-      '<select id="comp'+i+'" '+(canEdit?'':'disabled')+'><option value="">-- scegli bambino --</option>'+opts+'</select></div>';
+      '<select id="comp'+i+'" '+(canEdit?'':'disabled')+'><option value="">-- scegli ragazzo --</option>'+opts+'</select></div>';
   }).join("");
   const capOptions = t.componenti.map(function(n,i){
     return n ? '<option value="'+i+'" '+(t.capitanoIndex===i?'selected':'')+'>'+escapeHtml(n)+'</option>' : '';
@@ -683,8 +683,8 @@ function renderBambini(){
         (p!==null?'<div class="btot">'+p+' pt</div>':'')+
         '</div></div>';
     }).join("");
-  return '<h2 class="section-title">Bambini ('+state.bambini.length+')</h2>'+
-    '<input class="search-bar" id="searchBambini" placeholder="Cerca un bambino..." value="'+escapeHtml(ui.search)+'">'+
+  return '<h2 class="section-title">Ragazzi ('+state.bambini.length+')</h2>'+
+    '<input class="search-bar" id="searchBambini" placeholder="Cerca un ragazzo..." value="'+escapeHtml(ui.search)+'">'+
     '<div class="bambini-list">'+(rows||'<div class="empty-note">Nessun risultato</div>')+'</div>';
 }
 
@@ -720,8 +720,8 @@ function renderAssegna(){
   return '<h2 class="section-title">Assegna bonus / malus</h2>'+
     '<div class="day-picker">'+dayBtns+'</div>'+
     gruppiSection+
-    '<input class="search-bar" id="searchAssegna" placeholder="Cerca bambino..." value="'+escapeHtml(ui.search)+'">'+
-    '<div class="kid-picker">'+(kidChips||'<div class="empty-note">Nessun bambino trovato</div>')+'</div>'+
+    '<input class="search-bar" id="searchAssegna" placeholder="Cerca ragazzo..." value="'+escapeHtml(ui.search)+'">'+
+    '<div class="kid-picker">'+(kidChips||'<div class="empty-note">Nessun ragazzo trovato</div>')+'</div>'+
     '<div class="selected-count">'+ui.selectedKids.size+' selezionato/i &middot; '+DAY_LABELS[ui.day]+
       (ui.selectedKids.size ? ' &middot; <a href="#" id="svuotaSelezioneBtn" style="color:var(--malus);text-decoration:underline;">svuota</a>' : '')+
     '</div>'+
@@ -850,7 +850,7 @@ function renderAdmin(){
       '<div class="field"><label>Nome squadra reale</label><input type="text" id="gruppoNome" value="'+escapeHtml(eg.nome)+'" placeholder="es. Frate Vento"></div>'+
       '<div class="field"><label>Componenti ('+eg.componenti.length+')</label></div>'+
       '<div style="font-size:12px;color:var(--muted);margin:-6px 0 8px;">Non vedi un ragazzo? È già assegnato a un&#39;altra squadra reale.</div>'+
-      '<div class="kid-picker">'+(chipsGruppo||'<div class="empty-note">Nessun bambino disponibile</div>')+'</div>'+
+      '<div class="kid-picker">'+(chipsGruppo||'<div class="empty-note">Nessun ragazzo disponibile</div>')+'</div>'+
       '<button class="btn primary block" id="salvaGruppoBtn" style="margin-top:10px;">Salva gruppo</button>'+
       '<button class="btn block" id="annullaGruppoBtn" style="margin-top:8px;">Annulla</button>'+
       '</div>';
@@ -872,16 +872,16 @@ function renderAdmin(){
       '<button class="btn primary block" id="saveScadenzeBtn">Salva scadenze</button>'+
     '</div>'+
     '<div class="form-panel">'+
-      '<div class="field"><label>Gestione bambini ('+state.bambini.length+')</label></div>'+
-      (bambiniRows||'<div class="empty-note">Nessun bambino ancora. Aggiungili qui sotto, uno alla volta o in blocco.</div>')+
+      '<div class="field"><label>Gestione ragazzi ('+state.bambini.length+')</label></div>'+
+      (bambiniRows||'<div class="empty-note">Nessun ragazzo ancora. Aggiungili qui sotto, uno alla volta o in blocco.</div>')+
       toggleBambiniBtn+
-      '<div class="field" style="margin-top:14px;"><label>Aggiungi un bambino</label></div>'+
+      '<div class="field" style="margin-top:14px;"><label>Aggiungi un ragazzo</label></div>'+
       '<div style="display:flex;gap:8px;margin-bottom:14px;">'+
         '<input type="text" id="nuovoBambinoNome" placeholder="Nome Cognome" style="flex:1;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;">'+
         '<input type="text" inputmode="numeric" id="nuovoBambinoCosto" placeholder="Costo" style="width:70px;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;text-align:center;">'+
         '<button class="btn primary" id="addBambinoBtn">+</button>'+
       '</div>'+
-      '<div class="field"><label>Importa più bambini insieme (una riga per bambino, formato: Nome Cognome, Costo)</label>'+
+      '<div class="field"><label>Importa più ragazzi insieme (una riga per ragazzo, formato: Nome Cognome, Costo)</label>'+
       '<textarea id="importBambiniText" rows="5" placeholder="Mario Rossi, 20&#10;Giulia Bianchi, 24" style="width:100%;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;font-family:inherit;font-size:14px;"></textarea></div>'+
       '<button class="btn primary block" id="importBambiniBtn">Importa lista</button>'+
     '</div>'+
@@ -939,9 +939,9 @@ function bindTabEvents(){
       const t = ui.editingTeam;
       if(!t.nomeSquadra || !t.animatoreNome){ toast("Compila nome squadra e il tuo nome"); return; }
       const valorizzati = t.componenti.filter(function(c){ return c; });
-      if(valorizzati.length<5){ toast("Devi scegliere tutti e 5 i bambini"); return; }
+      if(valorizzati.length<5){ toast("Devi scegliere tutti e 5 i ragazzi"); return; }
       let costo = 0;
-      for(const n of t.componenti){ const b=findBambino(n); if(!b){ toast("Bambino non trovato: "+n); return; } costo += b.costo; }
+      for(const n of t.componenti){ const b=findBambino(n); if(!b){ toast("Ragazzo non trovato: "+n); return; } costo += b.costo; }
       if(costo>100){ toast("Superi i 100 mimmi (costo attuale: "+costo+")"); return; }
       const capitano = t.componenti[t.capitanoIndex||0] || t.componenti[0];
       try{
@@ -1159,7 +1159,7 @@ function bindTabEvents(){
           puntiSnap.forEach(function(doc){ batch3.update(doc.ref, {bambino:nuovoNome}); });
           await batch3.commit();
 
-          toast("Bambino rinominato in \""+nuovoNome+"\", riferimenti aggiornati");
+          toast("Ragazzo rinominato in \""+nuovoNome+"\", riferimenti aggiornati");
         }catch(e){ toast("Errore durante la rinomina: "+e.message); }
       };
     });
@@ -1178,7 +1178,7 @@ function bindTabEvents(){
       if(isNaN(costo) || costo<0){ toast("Costo non valido"); return; }
       try{
         await db.collection("bambini").doc(nome).set({nome:nome, costo:costo});
-        toast("Bambino aggiunto");
+        toast("Ragazzo aggiunto");
         document.getElementById("nuovoBambinoNome").value=""; document.getElementById("nuovoBambinoCosto").value="";
       }catch(e){ toast("Errore: "+e.message); }
     };
@@ -1200,7 +1200,7 @@ function bindTabEvents(){
           n++;
         });
         await batch.commit();
-        toast(n+" bambini importati");
+        toast(n+" ragazzi importati");
         document.getElementById("importBambiniText").value="";
       }catch(e){ toast("Errore: "+e.message); }
     };
@@ -1250,7 +1250,7 @@ function bindTabEvents(){
 }
 
 async function applyToSelected(label, pts){
-  if(ui.selectedKids.size===0){ toast("Seleziona almeno un bambino"); return; }
+  if(ui.selectedKids.size===0){ toast("Seleziona almeno un ragazzo"); return; }
   const nomi = Array.from(ui.selectedKids);
   try{
     const batch = db.batch();
@@ -1262,7 +1262,7 @@ async function applyToSelected(label, pts){
       });
     });
     await batch.commit();
-    toast(label+" ("+(pts>0?"+":"")+pts+") applicato a "+nomi.length+" bambino/i");
+    toast(label+" ("+(pts>0?"+":"")+pts+") applicato a "+nomi.length+" ragazzo/i");
     ui.selectedKids.clear();
     render();
   }catch(e){ toast("Errore: "+e.message); }
