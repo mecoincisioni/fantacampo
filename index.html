@@ -99,6 +99,8 @@
     text-transform:uppercase;letter-spacing:0.3px;}
   .field input[type=text], .field select{width:100%;background:var(--panel);border:1px solid var(--line);
     color:var(--cream);padding:12px;border-radius:10px;font-family:'Nunito',sans-serif;font-size:16px;min-height:46px;}
+  .field input[type=datetime-local]{width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--cream);padding:12px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:15px;min-height:46px;}
   .cost-live{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);margin:8px 0 14px;font-weight:600;}
   .cost-live.over{color:var(--malus);font-weight:800;}
   .form-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
@@ -269,7 +271,7 @@ const CATALOGO = {
 let user = null;
 let state = { config:null, admins:[], bambini:[], squadre:[], punti:null, utenti:[], mioUtente:null };
 let unsubscribers = [];
-let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null };
+let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null, bambiniExpanded:false };
 
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function toast(msg){
@@ -720,7 +722,9 @@ function renderAdmin(){
     : '';
 
   const bambiniOrdinati = state.bambini.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); });
-  const bambiniRows = bambiniOrdinati.map(function(b){
+  const VISIBILI = 5;
+  const bambiniDaMostrare = ui.bambiniExpanded ? bambiniOrdinati : bambiniOrdinati.slice(0, VISIBILI);
+  const bambiniRows = bambiniDaMostrare.map(function(b){
     return '<div class="admin-row" style="flex-wrap:wrap;">'+
       '<input type="text" class="bambino-nome-input" data-nomeorig="'+escapeHtml(b.nome)+'" value="'+escapeHtml(b.nome)+'" style="flex:1;min-width:120px;background:var(--panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:8px;">'+
       '<input type="text" inputmode="numeric" class="bambino-costo-input" data-nomeorig="'+escapeHtml(b.nome)+'" value="'+b.costo+'" style="width:56px;background:var(--panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:8px;text-align:center;">'+
@@ -728,6 +732,10 @@ function renderAdmin(){
       '<button class="btn small danger" data-delbambino="'+escapeHtml(b.nome)+'">Elimina</button>'+
       '</div>';
   }).join("");
+  const nascosti = bambiniOrdinati.length - VISIBILI;
+  const toggleBambiniBtn = bambiniOrdinati.length > VISIBILI
+    ? '<button class="btn block" id="toggleBambiniListBtn" style="margin-top:6px;">'+(ui.bambiniExpanded ? "Mostra meno ▲" : "Mostra tutti ("+nascosti+" altri) ▼")+'</button>'
+    : '';
 
   function tsToLocalInput(ts){
     if(!ts || !ts.toDate) return "";
@@ -750,6 +758,7 @@ function renderAdmin(){
     '<div class="form-panel">'+
       '<div class="field"><label>Gestione bambini ('+state.bambini.length+')</label></div>'+
       (bambiniRows||'<div class="empty-note">Nessun bambino ancora. Aggiungili qui sotto, uno alla volta o in blocco.</div>')+
+      toggleBambiniBtn+
       '<div class="field" style="margin-top:14px;"><label>Aggiungi un bambino</label></div>'+
       '<div style="display:flex;gap:8px;margin-bottom:14px;">'+
         '<input type="text" id="nuovoBambinoNome" placeholder="Nome Cognome" style="flex:1;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;">'+
@@ -891,6 +900,9 @@ function bindTabEvents(){
         catch(e){ toast("Errore: "+e.message); }
       };
     });
+
+    const toggleBambiniListBtn = document.getElementById("toggleBambiniListBtn");
+    if(toggleBambiniListBtn) toggleBambiniListBtn.onclick = function(){ ui.bambiniExpanded = !ui.bambiniExpanded; render(); };
 
     const saveScadBtn = document.getElementById("saveScadenzeBtn");
     if(saveScadBtn) saveScadBtn.onclick = async function(){
