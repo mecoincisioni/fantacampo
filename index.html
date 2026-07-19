@@ -345,6 +345,9 @@ async function ensureUtenteDoc(){
     const doc = await ref.get();
     if(!doc.exists){
       await ref.set({ username: uname, stato: (uname===OWNER_USERNAME?"attivo":"in_attesa"), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    } else if(uname===OWNER_USERNAME && doc.data().stato!=="attivo"){
+      // il proprietario è sempre attivo, anche se il documento era rimasto in uno stato vecchio
+      await ref.update({stato:"attivo"});
     }
   }catch(e){ console.error("ensureUtenteDoc", e); }
 }
