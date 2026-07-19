@@ -124,6 +124,12 @@
   ::placeholder{color:#636366;}
 
   .bambini-list{border:0.5px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  .bambini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .bambino-card{background:var(--panel);border:0.5px solid var(--line);border-radius:12px;
+    padding:10px 11px;min-height:58px;}
+  .bambino-card .bnome{color:#fff;font-weight:800;font-size:12.5px;line-height:1.25;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bambino-card-meta{display:flex;justify-content:space-between;align-items:center;margin-top:5px;}
   .bambino-row{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;
     border-bottom:0.5px solid var(--line);background:var(--panel);gap:8px;}
   .bambino-row:last-child{border-bottom:none;}
@@ -687,22 +693,23 @@ function renderSquadra(){
 
 function renderBambini(){
   const q = ui.search.toLowerCase();
-  const rows = state.bambini.filter(function(b){ return b.nome.toLowerCase().indexOf(q)!==-1; })
+  const items = state.bambini.filter(function(b){ return b.nome.toLowerCase().indexOf(q)!==-1; })
     .slice().sort(function(a,b){
       const pa = puntiTotaliBambino(a.nome)||0, pb = puntiTotaliBambino(b.nome)||0;
       return pb-pa;
     }).map(function(b){
       const squadre = state.squadre.filter(function(t){ return (t.componenti||[]).indexOf(b.nome)!==-1; }).map(function(t){ return t.animatoreNome||t.id; });
       const p = puntiTotaliBambino(b.nome);
-      return '<div class="bambino-row"><div><div class="bnome">'+escapeHtml(b.nome)+'</div>'+
-        (squadre.length?'<div class="bteams">in squadra con: '+escapeHtml(squadre.join(", "))+'</div>':'')+
-        '</div><div class="bmeta"><div class="bcost">'+b.costo+' m</div>'+
-        (p!==null?'<div class="btot">'+p+' pt</div>':'')+
-        '</div></div>';
+      return '<div class="bambino-card"><div class="bnome">'+escapeHtml(b.nome)+'</div>'+
+        '<div class="bambino-card-meta"><span class="bcost">'+b.costo+' m</span>'+
+        (p!==null?'<span class="btot">'+p+' pt</span>':'')+
+        '</div>'+
+        (squadre.length?'<div class="bteams">'+escapeHtml(squadre.join(", "))+'</div>':'')+
+        '</div>';
     }).join("");
   return '<h2 class="section-title">Ragazzi ('+state.bambini.length+')</h2>'+
     '<input class="search-bar" id="searchBambini" placeholder="Cerca un ragazzo..." value="'+escapeHtml(ui.search)+'">'+
-    '<div class="bambini-list">'+(rows||'<div class="empty-note">Nessun risultato</div>')+'</div>';
+    '<div class="bambini-grid">'+(items||'<div class="empty-note" style="grid-column:span 2;">Nessun risultato</div>')+'</div>';
 }
 
 function renderAssegna(){
