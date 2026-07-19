@@ -438,8 +438,10 @@ function scadenzaPuntiPassata(){
   return new Date() > state.config.scadenzaPunti.toDate();
 }
 function msRimanenti(ts){
-  if(!ts || !ts.toDate) return null;
-  return ts.toDate().getTime() - Date.now();
+  if(!ts) return null;
+  const d = ts.toDate ? ts.toDate() : ts; // supporta sia Timestamp Firestore che Date
+  if(!(d instanceof Date) || isNaN(d.getTime())) return null;
+  return d.getTime() - Date.now();
 }
 function formatCountdown(ts){
   const ms = msRimanenti(ts);
@@ -463,18 +465,6 @@ function statoClassificaInfo(){
   if(state.config.classificaFinalePubblicata) return {label:"pubblicata (finale)", color:"var(--bonus)"};
   if(scadenzaPuntiPassata()) return {label:"nascosta automaticamente (raccolta punti terminata)", color:"var(--gold)"};
   return {label:"live (visibile a tutti)", color:"var(--bonus)"};
-}
-function formatCountdown(targetDate){
-  const ms = targetDate.getTime() - Date.now();
-  if(ms<=0) return null;
-  const totMin = Math.floor(ms/60000);
-  const giorni = Math.floor(totMin/1440);
-  const ore = Math.floor((totMin%1440)/60);
-  const min = totMin%60;
-  if(giorni>0) return giorni+"g "+ore+"h";
-  if(ore>0) return ore+"h "+min+"m";
-  if(min>0) return min+" min";
-  return "meno di un minuto";
 }
 
 /* ---------- SETUP INIZIALE (solo owner, se il database è vuoto) ---------- */
@@ -612,7 +602,7 @@ function renderClassifica(){
     const scad = state.config.scadenzaPunti.toDate();
     const msRimasti = scad.getTime() - Date.now();
     if(msRimasti>0 && msRimasti <= 24*60*60*1000){
-      countdownBanner = '<div class="lock-note">⏳ Tra <b>'+formatCountdown(scad)+'</b> la classifica verrà nascosta (fine raccolta punti), fino alla pubblicazione finale.</div>';
+      countdownBanner = '<div class="lock-note">⏳ '+formatCountdown(scad)+' alla fine della raccolta punti: poi la classifica verrà nascosta fino alla pubblicazione finale.</div>';
     }
   }
   const sorted = state.squadre.slice().sort(function(a,b){
@@ -634,7 +624,7 @@ function renderSquadra(){
   const lockNote = scaduta
     ? '<div class="lock-note">Il tempo per creare/modificare la squadra è scaduto.'+(isAdmin()?' Come admin puoi comunque modificarla.':' Contatta l&#39;organizzatore se serve una modifica.')+'</div>'
     : urgente
-      ? '<div class="lock-note" style="border-color:var(--malus);color:var(--malus);">⏰ Attenzione: '+formatCountdown(state.config.scadenzaSquadre)+' per creare/modificare la tua squadra! Dopo non potrai più cambiarla.</div>'
+      ? '<div class="lock-note" style="border-color:var(--malus);color:var(--malus);">⏰ '+formatCountdown(state.config.scadenzaSquadre)+' per creare/modificare la tua squadra! Dopo non potrai più cambiarla.</div>'
       : '<div class="lock-note">Puoi creare o modificare la tua squadra fino alla scadenza fissata dall&#39;organizzatore. '+formatCountdown(state.config.scadenzaSquadre)+'.</div>';
 
   const t = ui.editingTeam || (mia ? {
@@ -802,9 +792,9 @@ function renderAdmin(){
     '<div class="form-panel">'+
       '<div class="field"><label>Scadenze</label></div>'+
       '<div class="field"><label>Ultimo momento per creare/modificare le squadre</label><input type="datetime-local" id="inpScadSquadre" value="'+tsToLocalInput(state.config.scadenzaSquadre)+'">'+
-        '<div style="font-size:12px;color:var(--muted);margin-top:6px;">'+(state.config.scadenzaSquadre && state.config.scadenzaSquadre.toDate ? ("Tempo rimasto: "+(formatCountdown(state.config.scadenzaSquadre.toDate())||"scaduta")) : "—")+'</div></div>'+
+        '<div style="font-size:12px;color:var(--muted);margin-top:6px;">'+(formatCountdown(state.config.scadenzaSquadre)||"—")+'</div></div>'+
       '<div class="field"><label>Ultimo momento per raccogliere punti (poi classifica nascosta)</label><input type="datetime-local" id="inpScadPunti" value="'+tsToLocalInput(state.config.scadenzaPunti)+'">'+
-        '<div style="font-size:12px;color:var(--muted);margin-top:6px;">'+(state.config.scadenzaPunti && state.config.scadenzaPunti.toDate ? ("Tempo rimasto: "+(formatCountdown(state.config.scadenzaPunti.toDate())||"scaduta")) : "—")+'</div></div>'+
+        '<div style="font-size:12px;color:var(--muted);margin-top:6px;">'+(formatCountdown(state.config.scadenzaPunti)||"—")+'</div></div>'+
       '<button class="btn primary block" id="saveScadenzeBtn">Salva scadenze</button>'+
     '</div>'+
     '<div class="form-panel">'+
