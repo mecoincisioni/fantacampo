@@ -440,7 +440,13 @@ function scadenzaPuntiPassata(){
 function classificaVisibile(){
   if(isAdmin()) return true;
   if(state.config && state.config.classificaFinalePubblicata) return true;
+  if(scadenzaPuntiPassata()) return false; // doppio controllo lato app: dopo la scadenza, nascosta a prescindere da eventuali dati residui
   return state.punti !== null; // se non riusciamo a leggere i punti = nascosta dalle regole del database
+}
+function statoClassificaInfo(){
+  if(state.config.classificaFinalePubblicata) return {label:"pubblicata (finale)", color:"var(--bonus)"};
+  if(scadenzaPuntiPassata()) return {label:"nascosta automaticamente (raccolta punti terminata)", color:"var(--gold)"};
+  return {label:"live (visibile a tutti)", color:"var(--bonus)"};
 }
 
 /* ---------- SETUP INIZIALE (solo owner, se il database è vuoto) ---------- */
@@ -750,7 +756,7 @@ function renderAdmin(){
   return '<h2 class="section-title">Pannello amministratori</h2>'+
     adminSection+
     '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
-      '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato: '+(state.config.classificaFinalePubblicata?'<b style="color:var(--bonus)">pubblicata</b>':'<b style="color:var(--gold)">nascosta</b>')+'</div>'+
+      '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato attuale: <b style="color:'+statoClassificaInfo().color+'">'+statoClassificaInfo().label+'</b></div>'+
       '<button class="btn primary block" id="toggleFinaleBtn">'+(state.config.classificaFinalePubblicata?'Nascondi di nuovo':'Pubblica classifica finale')+'</button></div>'+
     '<div class="form-panel">'+
       '<div class="field"><label>Scadenze</label></div>'+
@@ -1069,6 +1075,10 @@ async function applyToSelected(label, pts){
     render();
   }catch(e){ toast("Errore: "+e.message); }
 }
+
+// Ricontrolla ogni 30 secondi: fa sì che scadenze/classifica si aggiornino da sole nel tempo,
+// anche se nessun dato nuovo arriva dal database.
+setInterval(function(){ if(user) render(); }, 30000);
 </script>
 </body>
 </html>
