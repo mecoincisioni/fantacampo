@@ -831,7 +831,13 @@ function renderAdmin(){
       '</div>';
   }).join("");
 
-  const kidsPerGruppo = state.bambini.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); });
+  const assegnatiAltrove = {};
+  state.gruppi.forEach(function(g){
+    if(ui.editingGruppo && g.id===ui.editingGruppo.id) return; // il gruppo che sto modificando non conta come "altrove"
+    (g.componenti||[]).forEach(function(n){ assegnatiAltrove[n] = true; });
+  });
+  const kidsPerGruppo = state.bambini.filter(function(b){ return !assegnatiAltrove[b.nome]; })
+    .slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); });
   let gruppoEditorHtml = "";
   if(ui.editingGruppo){
     const eg = ui.editingGruppo;
@@ -843,6 +849,7 @@ function renderAdmin(){
       '<div class="field"><label>'+(eg.id?'Modifica gruppo':'Nuovo gruppo')+'</label></div>'+
       '<div class="field"><label>Nome squadra reale</label><input type="text" id="gruppoNome" value="'+escapeHtml(eg.nome)+'" placeholder="es. Frate Vento"></div>'+
       '<div class="field"><label>Componenti ('+eg.componenti.length+')</label></div>'+
+      '<div style="font-size:12px;color:var(--muted);margin:-6px 0 8px;">Non vedi un ragazzo? È già assegnato a un&#39;altra squadra reale.</div>'+
       '<div class="kid-picker">'+(chipsGruppo||'<div class="empty-note">Nessun bambino disponibile</div>')+'</div>'+
       '<button class="btn primary block" id="salvaGruppoBtn" style="margin-top:10px;">Salva gruppo</button>'+
       '<button class="btn block" id="annullaGruppoBtn" style="margin-top:8px;">Annulla</button>'+
