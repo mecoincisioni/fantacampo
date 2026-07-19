@@ -201,20 +201,8 @@ const db = firebase.firestore();
 const DAYS = ["Lun","Mar","Mer","Gio","Ven","Sab"];
 const DAY_LABELS = {Lun:"Lunedì",Mar:"Martedì",Mer:"Mercoledì",Gio:"Giovedì",Ven:"Venerdì",Sab:"Sabato"};
 
-const BAMBINI_INIZIALI = [
-["Matilde Iacoi",14],["Emma Cannella",14],["Paola Palestini",14],["Leonardo Poggi",14],
-["Leonardo Pisciaroli",15],["Letizia Falleroni",19],["Sophia Pavoni",18],["M. Loana Palestini",18],
-["Maria Elena di Bari",18],["Enrico Ferrari",18],["Giona Corradetti",20],["Alessandro Massi",20],
-["Alessio Mignini",18],["Luigi Incicco",18],["Elio Mancini",18],["Niko Seghetti",20],
-["Viola Cruciani",24],["Serena Cruciani",24],["Ginevra Capriotti",26],["Caterina Aiello",24],
-["Francesca Scarfagna",24],["Giulia di Sarno",25],["Gioia Ciarrocchi",25],["Victoria Amabili",24],
-["Ginevra Poggi",24],["Stefano Acciarri",25],["Francesco Facciabene",24],["Raul Massi",24],
-["Ludovica Candidori",27],["Sveva di Cecco",30],["Giulia Massi",28],["Maria Carmen Melasecca",27],
-["Elena Pellicciotti",28],["Maria Vittoria Coccia",28],["Angela Crescenzi",28],["Zoe Viani",28],
-["Maria Francesca Bracciani",28],["Julian Caporossi",29],["Luca Bollettini",29],
-["Tito Lorenzo Pisciaroli",29],["Saul Cognigni",28],["Francesco Giostra",28],["Federico Russo",28],
-["Andrea Capriotti",29],["Silvano Mancini",28],["Paride Esposito",29]
-];
+/* I bambini NON vivono più nel codice: si gestiscono da Admin > Gestione bambini,
+   dati salvati solo nel database, mai nel repository pubblico. */
 
 const CATALOGO = {
   bonus: [
@@ -278,7 +266,7 @@ const CATALOGO = {
 };
 
 let user = null;
-let state = { config:null, admins:[], bambini:[], squadre:[], punti:null, utenti:[] };
+let state = { config:null, admins:[], bambini:[], squadre:[], punti:null, utenti:[], mioUtente:null };
 let unsubscribers = [];
 let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null };
 
@@ -292,8 +280,8 @@ const SYNTHETIC_DOMAIN = "@fantacampo.local";
 function usernameOf(email){ return (email||"").split("@")[0]; }
 function isAdmin(){ return !!user && (usernameOf(user.email)===OWNER_USERNAME || state.admins.indexOf(usernameOf(user.email))!==-1); }
 function isOwner(){ return !!user && usernameOf(user.email)===OWNER_USERNAME; }
-function myUtente(){ return state.utenti.filter(function(u2){ return u2.id===usernameOf(user.email); })[0]; }
-function isDisabled(){ const m = myUtente(); return !!m && m.disabilitato===true && !isAdmin(); }
+function myUtente(){ return state.mioUtente; }
+function myStato(){ return state.mioUtente ? state.mioUtente.stato : "in_attesa"; }
 
 /* ---------- AUTH: nickname + password ---------- */
 function validUsername(u){ return /^[a-z0-9_]{3,20}$/.test(u); }
@@ -337,7 +325,7 @@ function renderLogin(){
     showMsg("Creazione account in corso...");
     auth.createUserWithEmailAndPassword(v.u+SYNTHETIC_DOMAIN, v.p).then(function(cred){
       return db.collection("utenti").doc(v.u).set({
-        username: v.u, disabilitato: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        username: v.u, stato: (v.u===OWNER_USERNAME?"attivo":"in_attesa"), createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }).catch(function(e){
       if(e.code==="auth/email-already-in-use") showMsg("Questo nickname è già in uso. Usa \"Accedi\" invece.");
@@ -353,7 +341,7 @@ async function ensureUtenteDoc(){
   try{
     const doc = await ref.get();
     if(!doc.exists){
-      await ref.set({ username: uname, disabilitato:false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await ref.set({ username: uname, stato: (uname===OWNER_USERNAME?"attivo":"in_attesa"), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     }
   }catch(e){ console.error("ensureUtenteDoc", e); }
 }
@@ -398,10 +386,17 @@ function attachListeners(){
     render();
   }));
 
-  unsubscribers.push(db.collection("utenti").onSnapshot(function(snap){
-    state.utenti = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+  unsubscribers.push(db.collection("utenti").doc(usernameOf(user.email)).onSnapshot(function(doc){
+    state.mioUtente = doc.exists ? Object.assign({id:doc.id}, doc.data()) : null;
     render();
   }, function(e){ console.error(e); }));
+
+  if(isOwner()){
+    unsubscribers.push(db.collection("utenti").onSnapshot(function(snap){
+      state.utenti = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      render();
+    }, function(e){ console.error(e); }));
+  }
 }
 
 /* ---------- HELPERS DI CALCOLO ---------- */
@@ -444,15 +439,11 @@ function classificaVisibile(){
 
 /* ---------- SETUP INIZIALE (solo owner, se il database è vuoto) ---------- */
 async function needsSetup(){
-  const snap = await db.collection("bambini").limit(1).get();
-  return snap.empty;
+  const snap = await db.collection("config").doc("main").get();
+  return !snap.exists;
 }
 async function runSetup(){
   const batch = db.batch();
-  BAMBINI_INIZIALI.forEach(function(pair){
-    const ref = db.collection("bambini").doc(pair[0]);
-    batch.set(ref, {nome:pair[0], costo:pair[1]});
-  });
   const cfgRef = db.collection("config").doc("main");
   const now = new Date();
   const scadSquadre = new Date(now.getFullYear(), now.getMonth(), now.getDate()+7);
@@ -465,19 +456,30 @@ async function runSetup(){
   const adminRef = db.collection("admins").doc(OWNER_USERNAME);
   batch.set(adminRef, {addedAt: firebase.firestore.FieldValue.serverTimestamp()});
   await batch.commit();
-  toast("Dati iniziali creati!");
+  toast("Configurazione iniziale creata! Ora vai su Admin > Gestione bambini per aggiungerli.");
 }
 
 /* ---------- RENDER ---------- */
 function render(){
   if(!user) return;
-  if(isDisabled()){
-    document.getElementById("app").innerHTML =
-      '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
-      '<p>Il tuo account è stato disabilitato dall&#39;organizzatore. Se pensi sia un errore, parlane con lui.</p>'+
-      '<button class="btn block" id="logoutBtn2">Esci</button></div>';
-    document.getElementById("logoutBtn2").onclick = function(){ auth.signOut(); };
-    return;
+  if(!isAdmin()){
+    const stato = myStato();
+    if(stato==="in_attesa"){
+      document.getElementById("app").innerHTML =
+        '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
+        '<p>Il tuo account è in attesa di conferma da parte di un amministratore, che verificherà che tu sia un animatore del campo. Torna a controllare più tardi.</p>'+
+        '<button class="btn block" id="logoutBtn2">Esci</button></div>';
+      document.getElementById("logoutBtn2").onclick = function(){ auth.signOut(); };
+      return;
+    }
+    if(stato==="disabilitato"){
+      document.getElementById("app").innerHTML =
+        '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
+        '<p>Il tuo account è stato disabilitato dall&#39;organizzatore. Se pensi sia un errore, parlane con lui.</p>'+
+        '<button class="btn block" id="logoutBtn2">Esci</button></div>';
+      document.getElementById("logoutBtn2").onclick = function(){ auth.signOut(); };
+      return;
+    }
   }
   if(!state.config){
     if(isOwner()){
@@ -485,7 +487,7 @@ function render(){
         if(empty){
           document.getElementById("app").innerHTML =
             '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
-            '<p>Database vuoto: come proprietario puoi inizializzarlo con l&#39;elenco bambini, le scadenze di default e te stesso come amministratore.</p>'+
+            '<p>Prima configurazione: creerò le scadenze di default e te come amministratore. I bambini li aggiungerai subito dopo dal pannello Admin.</p>'+
             '<button class="btn primary" id="setupBtn">Inizializza dati</button></div>';
           document.getElementById("setupBtn").onclick = function(){ runSetup(); };
         } else {
@@ -501,7 +503,7 @@ function render(){
   const app = document.getElementById("app");
   const tabs = [["classifica","🏆","Classifica"], ["squadra","👥","Squadra"], ["bambini","🧒","Bambini"]];
   if(isAdmin()) tabs.push(["assegna","🎯","Assegna"], ["storico","📜","Storico"]);
-  if(isOwner()) tabs.push(["admin","⚙️","Admin"]);
+  if(isAdmin()) tabs.push(["admin","⚙️","Admin"]);
   tabs.push(["account","👤","Account"]);
 
   app.innerHTML =
@@ -523,7 +525,7 @@ function render(){
   if(ui.tab==="bambini") content.innerHTML = renderBambini();
   if(ui.tab==="assegna" && isAdmin()) content.innerHTML = renderAssegna();
   if(ui.tab==="storico" && isAdmin()) content.innerHTML = renderStorico();
-  if(ui.tab==="admin" && isOwner()) content.innerHTML = renderAdmin();
+  if(ui.tab==="admin" && isAdmin()) content.innerHTML = renderAdmin();
   if(ui.tab==="account") content.innerHTML = renderAccount();
 
   bindTabEvents();
@@ -693,22 +695,69 @@ function renderAdmin(){
   const iscrittiRows = iscritti.map(function(u2){
     const haSquadra = state.squadre.some(function(t){ return t.id===u2.id; });
     const data = u2.createdAt && u2.createdAt.toDate ? u2.createdAt.toDate().toLocaleString("it-IT") : "—";
-    return '<div class="admin-row"><span>'+escapeHtml(u2.id)+
-      (u2.disabilitato?'<span class="badge over">disabilitato</span>':'')+
+    const stato = u2.stato || "in_attesa";
+    let statoBadge = "";
+    if(stato==="in_attesa") statoBadge = '<span class="badge incomplete">in attesa</span>';
+    if(stato==="disabilitato") statoBadge = '<span class="badge over">disabilitato</span>';
+    let azione = "";
+    if(u2.id !== OWNER_USERNAME){
+      if(stato==="in_attesa") azione = '<button class="btn small primary" data-approva="'+escapeHtml(u2.id)+'">Approva</button>';
+      else if(stato==="attivo") azione = '<button class="btn small danger" data-toggledis="'+escapeHtml(u2.id)+'" data-cur="attivo">Disabilita</button>';
+      else azione = '<button class="btn small" data-toggledis="'+escapeHtml(u2.id)+'" data-cur="disabilitato">Riattiva</button>';
+    }
+    return '<div class="admin-row"><span>'+escapeHtml(u2.id)+statoBadge+
       (haSquadra?'':'<span class="badge incomplete">senza squadra</span>')+
-      '<div class="bteams">iscritto: '+data+'</div></span>'+
-      '<button class="btn small '+(u2.disabilitato?'':'danger')+'" data-toggledis="'+escapeHtml(u2.id)+'" data-cur="'+(u2.disabilitato?'1':'0')+'">'+(u2.disabilitato?'Riattiva':'Disabilita')+'</button>'+
+      '<div class="bteams">iscritto: '+data+'</div></span>'+azione+
       '</div>';
   }).join("");
 
-  return '<h2 class="section-title">Pannello proprietario</h2>'+
+  const adminSection = isOwner() ?
     '<div class="form-panel"><div class="field"><label>Amministratori attuali</label></div>'+rows+
       '<div class="field" style="margin-top:12px;"><label>Aggiungi amministratore (nickname)</label>'+
       '<input type="text" id="newAdminEmail" placeholder="es. teo"></div>'+
-      '<button class="btn primary block" id="addAdminBtn">Aggiungi</button></div>'+
+      '<button class="btn primary block" id="addAdminBtn">Aggiungi</button></div>'
+    : '';
+
+  const bambiniOrdinati = state.bambini.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); });
+  const bambiniRows = bambiniOrdinati.map(function(b){
+    return '<div class="admin-row"><span style="flex:1;">'+escapeHtml(b.nome)+'</span>'+
+      '<input type="text" inputmode="numeric" class="bambino-costo-input" data-nome="'+escapeHtml(b.nome)+'" value="'+b.costo+'" style="width:56px;background:var(--panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:8px;text-align:center;">'+
+      '<button class="btn small" data-savebambino="'+escapeHtml(b.nome)+'">Salva</button>'+
+      '<button class="btn small danger" data-delbambino="'+escapeHtml(b.nome)+'">Elimina</button>'+
+      '</div>';
+  }).join("");
+
+  function tsToLocalInput(ts){
+    if(!ts || !ts.toDate) return "";
+    const d = ts.toDate();
+    const pad = function(n){ return String(n).padStart(2,"0"); };
+    return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+  }
+
+  return '<h2 class="section-title">Pannello amministratori</h2>'+
+    adminSection+
     '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
       '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato: '+(state.config.classificaFinalePubblicata?'<b style="color:var(--bonus)">pubblicata</b>':'<b style="color:var(--gold)">nascosta</b>')+'</div>'+
       '<button class="btn primary block" id="toggleFinaleBtn">'+(state.config.classificaFinalePubblicata?'Nascondi di nuovo':'Pubblica classifica finale')+'</button></div>'+
+    '<div class="form-panel">'+
+      '<div class="field"><label>Scadenze</label></div>'+
+      '<div class="field"><label>Ultimo momento per creare/modificare le squadre</label><input type="datetime-local" id="inpScadSquadre" value="'+tsToLocalInput(state.config.scadenzaSquadre)+'"></div>'+
+      '<div class="field"><label>Ultimo momento per raccogliere punti (poi classifica nascosta)</label><input type="datetime-local" id="inpScadPunti" value="'+tsToLocalInput(state.config.scadenzaPunti)+'"></div>'+
+      '<button class="btn primary block" id="saveScadenzeBtn">Salva scadenze</button>'+
+    '</div>'+
+    '<div class="form-panel">'+
+      '<div class="field"><label>Gestione bambini ('+state.bambini.length+')</label></div>'+
+      (bambiniRows||'<div class="empty-note">Nessun bambino ancora. Aggiungili qui sotto, uno alla volta o in blocco.</div>')+
+      '<div class="field" style="margin-top:14px;"><label>Aggiungi un bambino</label></div>'+
+      '<div style="display:flex;gap:8px;margin-bottom:14px;">'+
+        '<input type="text" id="nuovoBambinoNome" placeholder="Nome Cognome" style="flex:1;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;">'+
+        '<input type="text" inputmode="numeric" id="nuovoBambinoCosto" placeholder="Costo" style="width:70px;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;text-align:center;">'+
+        '<button class="btn primary" id="addBambinoBtn">+</button>'+
+      '</div>'+
+      '<div class="field"><label>Importa più bambini insieme (una riga per bambino, formato: Nome Cognome, Costo)</label>'+
+      '<textarea id="importBambiniText" rows="5" placeholder="Mario Rossi, 20&#10;Giulia Bianchi, 24" style="width:100%;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;font-family:inherit;font-size:14px;"></textarea></div>'+
+      '<button class="btn primary block" id="importBambiniBtn">Importa lista</button>'+
+    '</div>'+
     '<div class="form-panel"><div class="field"><label>Iscritti ('+iscritti.length+')</label></div>'+
       (iscrittiRows||'<div class="empty-note">Nessuno iscritto ancora</div>')+
     '</div>';
@@ -825,14 +874,87 @@ function bindTabEvents(){
       try{ await db.collection("config").doc("main").update({classificaFinalePubblicata: !state.config.classificaFinalePubblicata}); toast("Aggiornato"); }
       catch(e){ toast("Errore: "+e.message); }
     };
-    Array.prototype.forEach.call(document.querySelectorAll("[data-toggledis]"), function(b){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-approva]"), function(b){
       b.onclick = async function(){
-        const uname = b.dataset.toggledis;
-        const cur = b.dataset.cur==="1";
-        try{ await db.collection("utenti").doc(uname).update({disabilitato: !cur}); toast(cur?"Riattivato":"Disabilitato"); }
+        try{ await db.collection("utenti").doc(b.dataset.approva).update({stato:"attivo"}); toast("Account approvato"); }
         catch(e){ toast("Errore: "+e.message); }
       };
     });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-toggledis]"), function(b){
+      b.onclick = async function(){
+        const uname = b.dataset.toggledis;
+        const cur = b.dataset.cur;
+        const nuovo = cur==="attivo" ? "disabilitato" : "attivo";
+        try{ await db.collection("utenti").doc(uname).update({stato: nuovo}); toast(nuovo==="attivo"?"Riattivato":"Disabilitato"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
+
+    const saveScadBtn = document.getElementById("saveScadenzeBtn");
+    if(saveScadBtn) saveScadBtn.onclick = async function(){
+      const vS = document.getElementById("inpScadSquadre").value;
+      const vP = document.getElementById("inpScadPunti").value;
+      if(!vS || !vP){ toast("Compila entrambe le date"); return; }
+      try{
+        await db.collection("config").doc("main").update({
+          scadenzaSquadre: firebase.firestore.Timestamp.fromDate(new Date(vS)),
+          scadenzaPunti: firebase.firestore.Timestamp.fromDate(new Date(vP))
+        });
+        toast("Scadenze aggiornate");
+      }catch(e){ toast("Errore: "+e.message); }
+    };
+
+    Array.prototype.forEach.call(document.querySelectorAll("[data-savebambino]"), function(b){
+      b.onclick = async function(){
+        const nome = b.dataset.savebambino;
+        const input = document.querySelector('.bambino-costo-input[data-nome="'+CSS.escape(nome)+'"]');
+        const costo = parseInt(input.value, 10);
+        if(isNaN(costo) || costo<0){ toast("Costo non valido"); return; }
+        try{ await db.collection("bambini").doc(nome).update({costo:costo}); toast("Costo aggiornato"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-delbambino]"), function(b){
+      b.onclick = async function(){
+        if(!confirm("Eliminare \""+b.dataset.delbambino+"\" dall'elenco?")) return;
+        try{ await db.collection("bambini").doc(b.dataset.delbambino).delete(); toast("Eliminato"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
+    const addBambinoBtn = document.getElementById("addBambinoBtn");
+    if(addBambinoBtn) addBambinoBtn.onclick = async function(){
+      const nome = (document.getElementById("nuovoBambinoNome").value||"").trim();
+      const costo = parseInt(document.getElementById("nuovoBambinoCosto").value, 10);
+      if(!nome){ toast("Inserisci un nome"); return; }
+      if(isNaN(costo) || costo<0){ toast("Costo non valido"); return; }
+      try{
+        await db.collection("bambini").doc(nome).set({nome:nome, costo:costo});
+        toast("Bambino aggiunto");
+        document.getElementById("nuovoBambinoNome").value=""; document.getElementById("nuovoBambinoCosto").value="";
+      }catch(e){ toast("Errore: "+e.message); }
+    };
+    const importBtn = document.getElementById("importBambiniBtn");
+    if(importBtn) importBtn.onclick = async function(){
+      const raw = document.getElementById("importBambiniText").value||"";
+      const righe = raw.split(String.fromCharCode(10)).map(function(r){ return r.trim(); }).filter(function(r){ return r; });
+      if(righe.length===0){ toast("Incolla almeno una riga"); return; }
+      try{
+        const batch = db.batch();
+        let n = 0;
+        righe.forEach(function(riga){
+          const parti = riga.split(",");
+          if(parti.length<2) return;
+          const nome = parti[0].trim();
+          const costo = parseInt(parti[1].trim(), 10);
+          if(!nome || isNaN(costo)) return;
+          batch.set(db.collection("bambini").doc(nome), {nome:nome, costo:costo});
+          n++;
+        });
+        await batch.commit();
+        toast(n+" bambini importati");
+        document.getElementById("importBambiniText").value="";
+      }catch(e){ toast("Errore: "+e.message); }
+    };
   }
   if(ui.tab==="account"){
     const changePwBtn = document.getElementById("changePwBtn");
