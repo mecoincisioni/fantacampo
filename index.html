@@ -622,7 +622,7 @@ function renderSquadra(){
   const msSquadre = msRimanenti(state.config.scadenzaSquadre);
   const urgente = msSquadre!==null && msSquadre>0 && msSquadre < 24*60*60*1000;
   const lockNote = scaduta
-    ? '<div class="lock-note">Il tempo per creare/modificare la squadra è scaduto.'+(isAdmin()?' Come admin puoi comunque modificarla.':' Contatta l&#39;organizzatore se serve una modifica.')+'</div>'
+    ? '<div class="lock-note">Il tempo per creare, modificare o eliminare la squadra è scaduto.'+(isAdmin()?' Come admin puoi comunque gestirla.':' Contatta l&#39;organizzatore se serve una modifica.')+'</div>'
     : urgente
       ? '<div class="lock-note" style="border-color:var(--malus);color:var(--malus);">⏰ '+formatCountdown(state.config.scadenzaSquadre)+' per creare/modificare la tua squadra! Dopo non potrai più cambiarla.</div>'
       : '<div class="lock-note">Puoi creare o modificare la tua squadra fino alla scadenza fissata dall&#39;organizzatore. '+formatCountdown(state.config.scadenzaSquadre)+'.</div>';
@@ -654,6 +654,7 @@ function renderSquadra(){
       '<div class="field"><label>Capitano (punti doppi)</label><select id="capitanoIndex" '+(canEdit?'':'disabled')+'>'+capOptions+'</select></div>'+
       '<div class="cost-live '+(costo>100?'over':'')+'">Costo squadra: '+costo+' / 100 mimmi'+(costo>100?'  ⚠ sopra budget':'')+'</div>'+
       (canEdit ? '<button class="btn primary block" id="saveTeamBtn">'+(mia?'Aggiorna squadra':'Crea squadra')+'</button>' : '')+
+      (canEdit && mia ? '<button class="btn danger block" id="deleteTeamBtn" style="margin-top:8px;">Elimina squadra</button>' : '')+
     '</div>';
 }
 
@@ -784,6 +785,17 @@ function renderAdmin(){
     return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
   }
 
+  const tutteLeSquadre = state.squadre.slice().sort(function(a,b){
+    return (teamScoreCost(b).punteggio||0) - (teamScoreCost(a).punteggio||0);
+  });
+  const squadreRows = tutteLeSquadre.map(function(t){
+    const sc = teamScoreCost(t);
+    return '<div class="admin-row"><span><b>'+escapeHtml(t.nomeSquadra||"Senza nome")+'</b>'+
+      '<div class="bteams">animatore: '+escapeHtml(t.animatoreNome||t.id)+' &middot; costo '+sc.costo+'/100'+(sc.punteggio!==null?' &middot; '+sc.punteggio+' pt':'')+'</div></span>'+
+      '<button class="btn small danger" data-delsquadra="'+escapeHtml(t.id)+'">Elimina</button>'+
+      '</div>';
+  }).join("");
+
   return '<h2 class="section-title">Pannello amministratori</h2>'+
     adminSection+
     '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
@@ -810,6 +822,9 @@ function renderAdmin(){
       '<div class="field"><label>Importa più bambini insieme (una riga per bambino, formato: Nome Cognome, Costo)</label>'+
       '<textarea id="importBambiniText" rows="5" placeholder="Mario Rossi, 20&#10;Giulia Bianchi, 24" style="width:100%;background:var(--panel);border:1px solid var(--line);color:var(--cream);padding:10px;border-radius:8px;font-family:inherit;font-size:14px;"></textarea></div>'+
       '<button class="btn primary block" id="importBambiniBtn">Importa lista</button>'+
+    '</div>'+
+    '<div class="form-panel"><div class="field"><label>Tutte le squadre ('+tutteLeSquadre.length+')</label></div>'+
+      (squadreRows||'<div class="empty-note">Nessuna squadra ancora creata</div>')+
     '</div>'+
     '<div class="form-panel"><div class="field"><label>Iscritti ('+iscritti.length+')</label></div>'+
       (iscrittiRows||'<div class="empty-note">Nessuno iscritto ancora</div>')+
@@ -870,6 +885,15 @@ function bindTabEvents(){
         toast("Squadra salvata!"); ui.editingTeam = null;
       }catch(e){ toast("Errore: "+e.message); }
     };
+    const deleteBtn2 = document.getElementById("deleteTeamBtn");
+    if(deleteBtn2) deleteBtn2.onclick = async function(){
+      if(!confirm("Eliminare definitivamente questa squadra?")) return;
+      try{
+        await db.collection("squadre").doc(usernameOf(user.email)).delete();
+        ui.editingTeam = null;
+        toast("Squadra eliminata");
+      }catch(e){ toast("Errore: "+e.message); }
+    };
   }
   if(ui.tab==="bambini"){
     const input = document.getElementById("searchBambini");
@@ -909,6 +933,13 @@ function bindTabEvents(){
     });
   }
   if(ui.tab==="admin"){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-delsquadra]"), function(b){
+      b.onclick = async function(){
+        if(!confirm("Eliminare definitivamente questa squadra?")) return;
+        try{ await db.collection("squadre").doc(b.dataset.delsquadra).delete(); toast("Squadra eliminata"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
     Array.prototype.forEach.call(document.querySelectorAll("[data-rmadmin]"), function(b){
       b.onclick = async function(){
         try{ await db.collection("admins").doc(b.dataset.rmadmin).delete(); toast("Rimosso"); }
