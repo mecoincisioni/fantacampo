@@ -11,6 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
   :root{
@@ -99,8 +100,12 @@
     text-transform:uppercase;letter-spacing:0.3px;}
   .field input[type=text], .field select{width:100%;background:var(--panel);border:1px solid var(--line);
     color:var(--cream);padding:12px;border-radius:10px;font-family:'Nunito',sans-serif;font-size:16px;min-height:46px;}
-  .field input[type=datetime-local]{width:100%;background:var(--panel);border:1px solid var(--line);
-    color:var(--cream);padding:12px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:15px;min-height:46px;}
+  .field input[type=datetime-local]{box-sizing:border-box;width:100%;max-width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--cream);padding:12px 8px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:14px;min-height:46px;}
+  .date-input-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;}
+  @media (max-width:380px){
+    .field input[type=datetime-local]{font-size:12px;padding:10px 4px;}
+  }
   .cost-live{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);margin:8px 0 14px;font-weight:600;}
   .cost-live.over{color:var(--malus);font-weight:800;}
   .form-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
@@ -269,9 +274,9 @@ const CATALOGO = {
 };
 
 let user = null;
-let state = { config:null, admins:[], bambini:[], squadre:[], punti:null, utenti:[], mioUtente:null };
+let state = { config:null, admins:[], bambini:[], squadre:[], punti:null, utenti:[], mioUtente:null, gruppi:[] };
 let unsubscribers = [];
-let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null, bambiniExpanded:false };
+let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null, bambiniExpanded:false, storicoFiltroGiorno:"", editingGruppo:null, gruppiExpanded:false };
 
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function toast(msg){
@@ -403,6 +408,11 @@ function attachListeners(){
       render();
     }, function(e){ console.error(e); }));
   }
+
+  unsubscribers.push(db.collection("gruppi").onSnapshot(function(snap){
+    state.gruppi = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    render();
+  }, function(e){ console.error(e); }));
 }
 
 /* ---------- HELPERS DI CALCOLO ---------- */
@@ -700,20 +710,34 @@ function renderAssegna(){
     }).join("");
     catalogHtml = '<div class="catalog-grid">'+items+'</div>';
   }
+  const gruppiChips = state.gruppi.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); }).map(function(g){
+    return '<div class="kid-chip" data-selgruppo="'+escapeHtml(g.id)+'" style="border-color:var(--gold-dim);">👥 '+escapeHtml(g.nome)+'</div>';
+  }).join("");
+  const gruppiSection = state.gruppi.length ?
+    '<div class="field"><label>Seleziona per squadra reale (aggiunge tutti i suoi componenti)</label></div>'+
+    '<div class="kid-picker" style="max-height:none;">'+gruppiChips+'</div>'
+    : '';
   return '<h2 class="section-title">Assegna bonus / malus</h2>'+
     '<div class="day-picker">'+dayBtns+'</div>'+
+    gruppiSection+
     '<input class="search-bar" id="searchAssegna" placeholder="Cerca bambino..." value="'+escapeHtml(ui.search)+'">'+
     '<div class="kid-picker">'+(kidChips||'<div class="empty-note">Nessun bambino trovato</div>')+'</div>'+
-    '<div class="selected-count">'+ui.selectedKids.size+' selezionato/i &middot; '+DAY_LABELS[ui.day]+'</div>'+
+    '<div class="selected-count">'+ui.selectedKids.size+' selezionato/i &middot; '+DAY_LABELS[ui.day]+
+      (ui.selectedKids.size ? ' &middot; <a href="#" id="svuotaSelezioneBtn" style="color:var(--malus);text-decoration:underline;">svuota</a>' : '')+
+    '</div>'+
     '<div class="cat-tabs">'+catTabs+'</div>'+catalogHtml;
 }
 
 function renderStorico(){
-  const log = (state.punti||[]).slice().sort(function(a,b){
-    const ta = a.ts && a.ts.toMillis ? a.ts.toMillis() : 0;
-    const tb = b.ts && b.ts.toMillis ? b.ts.toMillis() : 0;
-    return tb-ta;
-  });
+  const dayBtns = '<button class="day-btn '+(ui.storicoFiltroGiorno===""?"active":"")+'" data-storicoday="">Tutti</button>'+
+    DAYS.map(function(d){ return '<button class="day-btn '+(ui.storicoFiltroGiorno===d?"active":"")+'" data-storicoday="'+d+'">'+d+'</button>'; }).join("");
+  const log = (state.punti||[]).slice()
+    .filter(function(e){ return !ui.storicoFiltroGiorno || e.giorno===ui.storicoFiltroGiorno; })
+    .sort(function(a,b){
+      const ta = a.ts && a.ts.toMillis ? a.ts.toMillis() : 0;
+      const tb = b.ts && b.ts.toMillis ? b.ts.toMillis() : 0;
+      return tb-ta;
+    });
   const rows = log.map(function(e){
     return '<div class="log-row"><div><div class="log-name">'+escapeHtml(e.bambino)+'</div>'+
       '<div class="log-label">'+escapeHtml(e.etichetta)+'</div></div>'+
@@ -721,7 +745,9 @@ function renderStorico(){
       '<span class="log-pts '+(e.punti>=0?'pos':'neg')+'">'+(e.punti>0?"+":"")+e.punti+'</span>'+
       '<button class="btn small danger" data-undo="'+e.id+'">Annulla</button></div></div>';
   }).join("");
-  return '<h2 class="section-title">Storico assegnazioni</h2>'+(rows||'<div class="empty-note">Nessuna assegnazione registrata</div>');
+  return '<h2 class="section-title">Storico assegnazioni</h2>'+
+    '<div class="day-picker">'+dayBtns+'</div>'+
+    (rows||'<div class="empty-note">Nessuna assegnazione '+(ui.storicoFiltroGiorno?"per questo giorno":"registrata")+'</div>');
 }
 
 function renderAdmin(){
@@ -796,16 +822,45 @@ function renderAdmin(){
       '</div>';
   }).join("");
 
+  const gruppiOrdinati = state.gruppi.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); });
+  const gruppiRows = gruppiOrdinati.map(function(g){
+    return '<div class="admin-row" style="flex-wrap:wrap;"><span style="flex:1;"><b>'+escapeHtml(g.nome)+'</b>'+
+      '<div class="bteams">'+(g.componenti||[]).length+' componenti</div></span>'+
+      '<button class="btn small" data-editgruppo="'+escapeHtml(g.id)+'">Modifica</button>'+
+      '<button class="btn small danger" data-delgruppo="'+escapeHtml(g.id)+'">Elimina</button>'+
+      '</div>';
+  }).join("");
+
+  const kidsPerGruppo = state.bambini.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); });
+  let gruppoEditorHtml = "";
+  if(ui.editingGruppo){
+    const eg = ui.editingGruppo;
+    const chipsGruppo = kidsPerGruppo.map(function(b){
+      const sel = eg.componenti.indexOf(b.nome)!==-1;
+      return '<div class="kid-chip '+(sel?'selected':'')+'" data-gruppokid="'+escapeHtml(b.nome)+'">'+escapeHtml(b.nome)+'</div>';
+    }).join("");
+    gruppoEditorHtml = '<div class="form-panel">'+
+      '<div class="field"><label>'+(eg.id?'Modifica gruppo':'Nuovo gruppo')+'</label></div>'+
+      '<div class="field"><label>Nome squadra reale</label><input type="text" id="gruppoNome" value="'+escapeHtml(eg.nome)+'" placeholder="es. Frate Vento"></div>'+
+      '<div class="field"><label>Componenti ('+eg.componenti.length+')</label></div>'+
+      '<div class="kid-picker">'+(chipsGruppo||'<div class="empty-note">Nessun bambino disponibile</div>')+'</div>'+
+      '<button class="btn primary block" id="salvaGruppoBtn" style="margin-top:10px;">Salva gruppo</button>'+
+      '<button class="btn block" id="annullaGruppoBtn" style="margin-top:8px;">Annulla</button>'+
+      '</div>';
+  }
+
   return '<h2 class="section-title">Pannello amministratori</h2>'+
     adminSection+
     '<div class="form-panel"><div class="field"><label>Classifica finale</label></div>'+
       '<div style="margin-bottom:12px;font-size:13.5px;color:var(--muted)">Stato attuale: <b style="color:'+statoClassificaInfo().color+'">'+statoClassificaInfo().label+'</b></div>'+
-      '<button class="btn primary block" id="toggleFinaleBtn">'+(state.config.classificaFinalePubblicata?'Nascondi di nuovo':'Pubblica classifica finale')+'</button></div>'+
+      '<button class="btn primary block" id="toggleFinaleBtn">'+(state.config.classificaFinalePubblicata?'Nascondi di nuovo':'Pubblica classifica finale')+'</button>'+
+      '<button class="btn primary block" id="exportPdfBtn" style="margin-top:10px;">📄 Esporta classifica finale (PDF)</button>'+
+    '</div>'+
     '<div class="form-panel">'+
       '<div class="field"><label>Scadenze</label></div>'+
-      '<div class="field"><label>Ultimo momento per creare/modificare le squadre</label><input type="datetime-local" id="inpScadSquadre" value="'+tsToLocalInput(state.config.scadenzaSquadre)+'">'+
+      '<div class="field"><label>Ultimo momento per creare/modificare le squadre</label><div class="date-input-wrap"><input type="datetime-local" id="inpScadSquadre" value="'+tsToLocalInput(state.config.scadenzaSquadre)+'"></div>'+
         '<div style="font-size:12px;color:var(--muted);margin-top:6px;">'+(formatCountdown(state.config.scadenzaSquadre)||"—")+'</div></div>'+
-      '<div class="field"><label>Ultimo momento per raccogliere punti (poi classifica nascosta)</label><input type="datetime-local" id="inpScadPunti" value="'+tsToLocalInput(state.config.scadenzaPunti)+'">'+
+      '<div class="field"><label>Ultimo momento per raccogliere punti (poi classifica nascosta)</label><div class="date-input-wrap"><input type="datetime-local" id="inpScadPunti" value="'+tsToLocalInput(state.config.scadenzaPunti)+'"></div>'+
         '<div style="font-size:12px;color:var(--muted);margin-top:6px;">'+(formatCountdown(state.config.scadenzaPunti)||"—")+'</div></div>'+
       '<button class="btn primary block" id="saveScadenzeBtn">Salva scadenze</button>'+
     '</div>'+
@@ -826,6 +881,12 @@ function renderAdmin(){
     '<div class="form-panel"><div class="field"><label>Tutte le squadre ('+tutteLeSquadre.length+')</label></div>'+
       (squadreRows||'<div class="empty-note">Nessuna squadra ancora creata</div>')+
     '</div>'+
+    '<div class="form-panel"><div class="field"><label>Squadre reali del campo ('+gruppiOrdinati.length+')</label></div>'+
+      '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">Usale nell&#39;Assegna per applicare un bonus/malus a tutti i componenti di una squadra reale in un colpo solo.</div>'+
+      (gruppiRows||'<div class="empty-note">Nessuna squadra reale creata ancora</div>')+
+      '<button class="btn block" id="nuovoGruppoBtn" style="margin-top:10px;">+ Nuova squadra reale</button>'+
+    '</div>'+
+    gruppoEditorHtml+
     '<div class="form-panel"><div class="field"><label>Iscritti ('+iscritti.length+')</label></div>'+
       (iscrittiRows||'<div class="empty-note">Nessuno iscritto ancora</div>')+
     '</div>';
@@ -910,6 +971,17 @@ function bindTabEvents(){
         render();
       };
     });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-selgruppo]"), function(chip){
+      chip.onclick = function(){
+        const g = state.gruppi.filter(function(x){ return x.id===chip.dataset.selgruppo; })[0];
+        if(!g) return;
+        (g.componenti||[]).forEach(function(n){ ui.selectedKids.add(n); });
+        toast('Aggiunti i '+(g.componenti||[]).length+' componenti di "'+g.nome+'"');
+        render();
+      };
+    });
+    const svuotaBtn = document.getElementById("svuotaSelezioneBtn");
+    if(svuotaBtn) svuotaBtn.onclick = function(e){ e.preventDefault(); ui.selectedKids.clear(); render(); };
     Array.prototype.forEach.call(document.querySelectorAll("[data-cat]"), function(b){ b.onclick=function(){ ui.catTab=b.dataset.cat; render(); }; });
     Array.prototype.forEach.call(document.querySelectorAll("[data-catitem]"), function(el){
       el.onclick = function(){
@@ -925,6 +997,9 @@ function bindTabEvents(){
     };
   }
   if(ui.tab==="storico"){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-storicoday]"), function(b){
+      b.onclick = function(){ ui.storicoFiltroGiorno = b.dataset.storicoday; render(); };
+    });
     Array.prototype.forEach.call(document.querySelectorAll("[data-undo]"), function(b){
       b.onclick = async function(){
         try{ await db.collection("punti_log").doc(b.dataset.undo).delete(); toast("Annullato"); }
@@ -940,6 +1015,52 @@ function bindTabEvents(){
         catch(e){ toast("Errore: "+e.message); }
       };
     });
+    const nuovoGruppoBtn = document.getElementById("nuovoGruppoBtn");
+    if(nuovoGruppoBtn) nuovoGruppoBtn.onclick = function(){ ui.editingGruppo = {id:null, nome:"", componenti:[]}; render(); };
+    Array.prototype.forEach.call(document.querySelectorAll("[data-editgruppo]"), function(b){
+      b.onclick = function(){
+        const g = state.gruppi.filter(function(x){ return x.id===b.dataset.editgruppo; })[0];
+        if(!g) return;
+        ui.editingGruppo = {id:g.id, nome:g.nome, componenti:(g.componenti||[]).slice()};
+        render();
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-delgruppo]"), function(b){
+      b.onclick = async function(){
+        if(!confirm("Eliminare questa squadra reale?")) return;
+        try{ await db.collection("gruppi").doc(b.dataset.delgruppo).delete(); toast("Eliminata"); }
+        catch(e){ toast("Errore: "+e.message); }
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-gruppokid]"), function(chip){
+      chip.onclick = function(){
+        const n = chip.dataset.gruppokid;
+        const idx = ui.editingGruppo.componenti.indexOf(n);
+        if(idx===-1) ui.editingGruppo.componenti.push(n); else ui.editingGruppo.componenti.splice(idx,1);
+        render();
+      };
+    });
+    const annullaGruppoBtn = document.getElementById("annullaGruppoBtn");
+    if(annullaGruppoBtn) annullaGruppoBtn.onclick = function(){ ui.editingGruppo = null; render(); };
+    const salvaGruppoBtn = document.getElementById("salvaGruppoBtn");
+    if(salvaGruppoBtn) salvaGruppoBtn.onclick = async function(){
+      const eg = ui.editingGruppo;
+      const nome = (document.getElementById("gruppoNome").value||"").trim();
+      if(!nome){ toast("Inserisci un nome"); return; }
+      if(eg.componenti.length===0){ toast("Seleziona almeno un componente"); return; }
+      try{
+        if(eg.id && eg.id!==nome){
+          await db.collection("gruppi").doc(nome).set({nome:nome, componenti:eg.componenti});
+          await db.collection("gruppi").doc(eg.id).delete();
+        } else {
+          await db.collection("gruppi").doc(nome).set({nome:nome, componenti:eg.componenti});
+        }
+        ui.editingGruppo = null;
+        toast("Squadra reale salvata");
+      }catch(e){ toast("Errore: "+e.message); }
+    };
+    const exportPdfBtn = document.getElementById("exportPdfBtn");
+    if(exportPdfBtn) exportPdfBtn.onclick = function(){ esportaClassificaPDF(); };
     Array.prototype.forEach.call(document.querySelectorAll("[data-rmadmin]"), function(b){
       b.onclick = async function(){
         try{ await db.collection("admins").doc(b.dataset.rmadmin).delete(); toast("Rimosso"); }
@@ -1143,6 +1264,78 @@ async function applyToSelected(label, pts){
 // Ricontrolla ogni 30 secondi: fa sì che scadenze/classifica si aggiornino da sole nel tempo,
 // anche se nessun dato nuovo arriva dal database.
 setInterval(function(){ if(user) render(); }, 30000);
+
+function esportaClassificaPDF(){
+  try{
+    const jsPDFLib = window.jspdf && window.jspdf.jsPDF;
+    if(!jsPDFLib){ toast("Libreria PDF non disponibile (controlla la connessione)"); return; }
+    const doc = new jsPDFLib({unit:"pt", format:"a4"});
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    function nuovaPagina(){
+      doc.setFillColor(14,39,31);
+      doc.rect(0,0,pageW,pageH,"F");
+    }
+    nuovaPagina();
+
+    doc.setFillColor(18,51,40);
+    doc.rect(0,0,pageW,74,"F");
+    doc.setTextColor(242,183,5);
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(26);
+    doc.text("FANTACAMPO 2026", pageW/2, 36, {align:"center"});
+    doc.setFontSize(13);
+    doc.setTextColor(251,246,234);
+    doc.text("Classifica finale", pageW/2, 56, {align:"center"});
+
+    const sorted = state.squadre.slice().sort(function(a,b){
+      return (teamScoreCost(b).punteggio||0) - (teamScoreCost(a).punteggio||0);
+    });
+
+    let y = 100;
+    const rowH = 46;
+    sorted.forEach(function(t, i){
+      if(y + rowH > pageH - 40){ doc.addPage(); nuovaPagina(); y = 40; }
+      const sc = teamScoreCost(t);
+      if(i%2===0) doc.setFillColor(23,59,47); else doc.setFillColor(28,68,54);
+      doc.roundedRect(30, y, pageW-60, rowH-8, 8, 8, "F");
+
+      doc.setFillColor(242,183,5);
+      doc.roundedRect(30, y, 42, rowH-8, 8, 8, "F");
+      doc.setTextColor(28,28,28);
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(15);
+      doc.text(String(i+1), 51, y+(rowH-8)/2+5, {align:"center"});
+
+      doc.setTextColor(251,246,234);
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(13);
+      doc.text(t.nomeSquadra||"Senza nome", 88, y+17);
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(9);
+      doc.setTextColor(159,194,174);
+      doc.text("animatore: "+(t.animatoreNome||t.id), 88, y+31);
+
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(18);
+      doc.setTextColor(242,183,5);
+      doc.text(String(sc.punteggio||0)+" pt", pageW-45, y+(rowH-8)/2+6, {align:"right"});
+
+      y += rowH;
+    });
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(9);
+    doc.setTextColor(159,194,174);
+    doc.text("Generato il "+new Date().toLocaleString("it-IT"), pageW/2, pageH-20, {align:"center"});
+
+    doc.save("fantacampo-classifica-finale.pdf");
+    toast("PDF scaricato");
+  }catch(e){
+    toast("Errore nell'export PDF: "+e.message);
+  }
+}
 </script>
 </body>
 </html>
