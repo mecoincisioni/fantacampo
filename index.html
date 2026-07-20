@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>FantaCampo 2026</title>
+<title>CampoScuola 2026</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjE0IiBmaWxsPSIjMTIzMzI4Ii8+CjxwYXRoIGQ9Ik0yMCAxNGgyNHYxMWExMiAxMiAwIDAgMS0yNCAwVjE0eiIgZmlsbD0iI0YyQjcwNSIvPgo8cGF0aCBkPSJNMjAgMTZoLTZhNyA3IDAgMCAwIDcgMTEiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0YyQjcwNSIgc3Ryb2tlLXdpZHRoPSIzLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cGF0aCBkPSJNNDQgMTZoNmE3IDcgMCAwIDEtNyAxMSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRjJCNzA1IiBzdHJva2Utd2lkdGg9IjMuMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjxyZWN0IHg9IjI5IiB5PSIzNyIgd2lkdGg9IjYiIGhlaWdodD0iOCIgZmlsbD0iI0YyQjcwNSIvPgo8cmVjdCB4PSIyMSIgeT0iNDUiIHdpZHRoPSIyMiIgaGVpZ2h0PSI1IiByeD0iMi4yIiBmaWxsPSIjRjJCNzA1Ii8+Cjwvc3ZnPg==">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -191,6 +191,40 @@
     background:var(--panel);border:0.5px solid var(--line);border-radius:10px;margin-bottom:7px;
     font-size:13.5px;gap:8px;color:#fff;}
 
+  /* ---- homepage ---- */
+  .home-header{text-align:center;padding:24px 0 20px;}
+  .home-header h1{font-family:'Anton',sans-serif;font-size:28px;color:#fff;margin:0;letter-spacing:1px;}
+  .home-header h1 span{color:#F2B705;}
+  .home-header .year{font-family:'JetBrains Mono',monospace;font-size:13px;color:#8E8E93;font-weight:700;margin-top:4px;}
+  .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .home-card{background:#1c1c1e;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;
+    padding:18px 16px;cursor:pointer;transition:transform .15s ease;min-height:100px;
+    display:flex;flex-direction:column;justify-content:flex-end;position:relative;overflow:hidden;}
+  .home-card:active{transform:scale(0.96);}
+  .home-card.big{grid-column:span 2;min-height:120px;
+    background:linear-gradient(135deg,#1c1a0e 0%,#1c1c1e 100%);
+    border-color:rgba(242,183,5,0.2);}
+  .home-card .hc-icon{font-size:32px;margin-bottom:8px;}
+  .home-card.big .hc-icon{font-size:40px;}
+  .home-card .hc-title{color:#fff;font-weight:800;font-size:15px;}
+  .home-card.big .hc-title{font-size:18px;color:#F2B705;}
+  .home-card .hc-sub{color:#8E8E93;font-size:11.5px;margin-top:2px;}
+  .home-card .hc-badge{position:absolute;top:12px;right:12px;background:#F2B705;color:#000;
+    font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;padding:3px 8px;border-radius:999px;}
+  .home-card.coming .hc-title{color:#636366;}
+  .home-card.coming .hc-sub{color:#48484A;}
+  .home-card.coming{border-style:dashed;border-color:rgba(255,255,255,0.06);}
+
+  .section-back{display:flex;align-items:center;gap:8px;color:#F2B705;font-weight:800;font-size:14px;
+    background:none;border:none;padding:10px 0;cursor:pointer;font-family:'Nunito',sans-serif;margin-bottom:8px;}
+  .section-back .arrow{font-size:20px;}
+
+  .placeholder-section{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:50vh;text-align:center;padding:24px;}
+  .placeholder-section .ph-icon{font-size:48px;margin-bottom:12px;}
+  .placeholder-section .ph-title{font-family:'Anton',sans-serif;font-size:22px;color:#fff;margin-bottom:6px;}
+  .placeholder-section .ph-sub{color:#8E8E93;font-size:14px;max-width:300px;line-height:1.5;}
+
   .login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;
     min-height:80vh;text-align:center;padding:24px;}
   .login-screen h1{font-family:'Anton',sans-serif;font-size:32px;margin:0 0 6px;color:#fff;}
@@ -299,7 +333,7 @@ const CATALOGO = {
 let user = null;
 let state = { config:null, admins:[], bambini:[], squadre:[], punti:null, utenti:[], mioUtente:null, gruppi:[] };
 let unsubscribers = [];
-let ui = { tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null, bambiniExpanded:false, storicoFiltroGiorno:"", editingGruppo:null, gruppiExpanded:false };
+let ui = { section:"home", tab:"classifica", day:"Lun", catTab:"bonus", selectedKids:new Set(), search:"", editingTeam:null, bambiniExpanded:false, storicoFiltroGiorno:"", editingGruppo:null, gruppiExpanded:false };
 
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function toast(msg){
@@ -321,8 +355,8 @@ function renderLogin(){
   const app = document.getElementById("app");
   app.innerHTML =
     '<div class="login-screen">'+
-      '<h1>FANTA<span>CAMPO</span></h1>'+
-      '<p>Scegli un nickname e una password per creare la tua squadra e seguire la classifica del campo.</p>'+
+      '<h1>CAMPO<span>SCUOLA</span></h1>'+
+      '<p>Scegli un nickname e una password per accedere al sito degli animatori del campo.</p>'+
       '<div class="form-panel" style="width:100%;max-width:320px;text-align:left;">'+
         '<div class="field"><label>Nickname</label><input type="text" id="loginUser" placeholder="es. teo" autocapitalize="off" autocorrect="off"></div>'+
         '<div class="field"><label>Password</label><input type="text" id="loginPass" placeholder="almeno 6 caratteri"></div>'+
@@ -529,7 +563,7 @@ function render(){
     const stato = myStato();
     if(stato==="in_attesa"){
       document.getElementById("app").innerHTML =
-        '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
+        '<div class="login-screen"><h1>CAMPO<span>SCUOLA</span></h1>'+
         '<p>Il tuo account è in attesa di conferma da parte di un amministratore, che verificherà che tu sia un animatore del campo. Torna a controllare più tardi.</p>'+
         '<button class="btn block" id="logoutBtn2">Esci</button></div>';
       document.getElementById("logoutBtn2").onclick = function(){ auth.signOut(); };
@@ -537,7 +571,7 @@ function render(){
     }
     if(stato==="disabilitato"){
       document.getElementById("app").innerHTML =
-        '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
+        '<div class="login-screen"><h1>CAMPO<span>SCUOLA</span></h1>'+
         '<p>Il tuo account è stato disabilitato dall&#39;organizzatore. Se pensi sia un errore, parlane con lui.</p>'+
         '<button class="btn block" id="logoutBtn2">Esci</button></div>';
       document.getElementById("logoutBtn2").onclick = function(){ auth.signOut(); };
@@ -549,7 +583,7 @@ function render(){
       needsSetup().then(function(empty){
         if(empty){
           document.getElementById("app").innerHTML =
-            '<div class="login-screen"><h1>FANTA<span>CAMPO</span></h1>'+
+            '<div class="login-screen"><h1>CAMPO<span>SCUOLA</span></h1>'+
             '<p>Prima configurazione: creerò le scadenze di default e te come amministratore. I ragazzi li aggiungerai subito dopo dal pannello Admin.</p>'+
             '<button class="btn primary" id="setupBtn">Inizializza dati</button></div>';
           document.getElementById("setupBtn").onclick = function(){ runSetup(); };
@@ -564,12 +598,82 @@ function render(){
   }
 
   const app = document.getElementById("app");
+
+  // ---- HOMEPAGE ----
+  if(ui.section==="home"){
+    const squadreCount = state.squadre.length;
+    const sections = [
+      {id:"fantacampo", icon:"🏆", title:"FantaCampo", sub:squadreCount+" squadre in gioco", big:true,
+        badge: classificaVisibile()?(state.squadre.slice().sort(function(a,b){return (teamScoreCost(b).punteggio||0)-(teamScoreCost(a).punteggio||0);})[0]||{}).nomeSquadra||"":""},
+      {id:"calendario", icon:"📅", title:"Calendario", sub:"Programma attività", coming:true},
+      {id:"giochi", icon:"🎲", title:"Giochi", sub:"Catalogo con regolamenti", coming:true},
+      {id:"squadre_campo", icon:"⚔️", title:"Squadre", sub:state.gruppi.length+" squadre del campo"},
+      {id:"turni", icon:"🔄", title:"Turni", sub:"Chi fa cosa e quando", coming:true},
+      {id:"canzoni", icon:"🎵", title:"Canzoni", sub:"Testi e preghiere", coming:true},
+    ];
+    const cards = sections.map(function(s){
+      return '<div class="home-card '+(s.big?'big':'')+(s.coming?' coming':'')+'" data-section="'+s.id+'">'+
+        '<div class="hc-icon">'+s.icon+'</div>'+
+        '<div class="hc-title">'+escapeHtml(s.title)+'</div>'+
+        '<div class="hc-sub">'+escapeHtml(s.sub)+'</div>'+
+        (s.badge?'<div class="hc-badge">1° '+escapeHtml(s.badge)+'</div>':'')+
+        '</div>';
+    }).join("");
+    app.innerHTML =
+      '<div class="home-header"><h1>CAMPO<span>SCUOLA</span></h1><div class="year">2026</div></div>'+
+      '<div class="home-grid">'+cards+'</div>';
+    Array.prototype.forEach.call(document.querySelectorAll("[data-section]"), function(c){
+      c.onclick = function(){
+        ui.section = c.dataset.section;
+        render();
+        window.scrollTo(0,0);
+      };
+    });
+    return;
+  }
+
+  // ---- SEZIONI PLACEHOLDER (coming soon) ----
+  var placeholders = {
+    calendario: {icon:"📅", title:"Calendario attività", sub:"Questa sezione è in arrivo. Qui potrai vedere il programma giornaliero del campo."},
+    giochi: {icon:"🎲", title:"Catalogo giochi", sub:"Questa sezione è in arrivo. Qui troverai tutti i giochi con regolamenti e istruzioni."},
+    turni: {icon:"🔄", title:"Turni", sub:"Questa sezione è in arrivo. Qui vedrai chi fa cosa e quando."},
+    canzoni: {icon:"🎵", title:"Canzoni e preghiere", sub:"Questa sezione è in arrivo. Qui troverai tutti i testi per i momenti comuni."}
+  };
+  if(placeholders[ui.section]){
+    var ph = placeholders[ui.section];
+    app.innerHTML =
+      '<button class="section-back" id="backHome"><span class="arrow">‹</span> Home</button>'+
+      '<div class="placeholder-section"><div class="ph-icon">'+ph.icon+'</div>'+
+      '<div class="ph-title">'+ph.title+'</div>'+
+      '<div class="ph-sub">'+ph.sub+'</div></div>';
+    document.getElementById("backHome").onclick = function(){ ui.section="home"; render(); window.scrollTo(0,0); };
+    return;
+  }
+
+  // ---- SQUADRE DEL CAMPO (visibili a tutti) ----
+  if(ui.section==="squadre_campo"){
+    var gruppiHtml = state.gruppi.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome); }).map(function(g){
+      var comps = (g.componenti||[]).map(function(n){ return '<div class="member-chip">'+escapeHtml(n)+'</div>'; }).join("");
+      return '<div class="team-card"><div class="team-name">'+escapeHtml(g.nome)+'</div>'+
+        '<div class="team-anim">'+(g.componenti||[]).length+' componenti</div>'+
+        '<div class="members">'+comps+'</div></div>';
+    }).join("");
+    app.innerHTML =
+      '<button class="section-back" id="backHome"><span class="arrow">‹</span> Home</button>'+
+      '<h2 class="section-title">Squadre del campo ('+state.gruppi.length+')</h2>'+
+      (gruppiHtml||'<div class="empty-note">Nessuna squadra del campo ancora creata. Gli admin possono crearle dal pannello Admin dentro FantaCampo.</div>');
+    document.getElementById("backHome").onclick = function(){ ui.section="home"; render(); window.scrollTo(0,0); };
+    return;
+  }
+
+  // ---- FANTACAMPO (il sito attuale) ----
   const tabs = [["classifica","🏆","Classifica"], ["squadra","👥","Squadra"], ["bambini","🧒","Ragazzi"]];
   if(isAdmin()) tabs.push(["assegna","🎯","Assegna"], ["storico","📜","Storico"]);
   if(isAdmin()) tabs.push(["admin","⚙️","Admin"]);
   tabs.push(["account","👤","Account"]);
 
   app.innerHTML =
+    '<button class="section-back" id="backHome"><span class="arrow">‹</span> Home</button>'+
     '<div class="topbar"><div class="brand"><h1>FANTA<span>CAMPO</span></h1>'+
     '<small>'+state.squadre.length+' squadre &middot; '+state.bambini.length+' ragazzi</small></div>'+
     '<div class="mimmi-pill">💰 max 100</div></div>'+
@@ -578,6 +682,7 @@ function render(){
       return '<button class="nav-btn '+(ui.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'"><span class="ic">'+t[1]+'</span><span>'+t[2]+'</span></button>';
     }).join('') +'</nav>';
 
+  document.getElementById("backHome").onclick = function(){ ui.section="home"; render(); window.scrollTo(0,0); };
   Array.prototype.forEach.call(document.querySelectorAll(".nav-btn"), function(b){
     b.onclick = function(){ ui.tab = b.dataset.tab; render(); window.scrollTo(0,0); };
   });
